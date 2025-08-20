@@ -41,7 +41,7 @@ class BomsTable
 
                 TextColumn::make('qty_per_unit')
                     ->label('Quantity')
-                    ->numeric(decimalPlaces: 3)
+                    ->numeric()
                     ->sortable(),
 
                 TextColumn::make('uom')

@@ -45,9 +45,8 @@ class BomForm
                                 TextInput::make('qty_per_unit')
                                     ->label('Quantity per Unit')
                                     ->required()
-                                    ->numeric()
-                                    ->minValue(0.001)
-                                    ->step(0.001)
+                                    ->integer()
+                                    ->minValue(1)
                                     ->placeholder('e.g., 50, 24, 1')
                                     ->helperText('How many packaging items needed per product unit'),
 

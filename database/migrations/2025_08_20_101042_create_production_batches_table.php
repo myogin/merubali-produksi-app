@@ -17,7 +17,7 @@ return new class extends Migration
             $table->date('production_date');
             $table->string('po_number')->nullable();
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
-            $table->decimal('qty_produced', 10, 3);
+            $table->integer('qty_produced');
             $table->string('uom')->default('cartons');
             $table->text('notes')->nullable();
             $table->timestamps();

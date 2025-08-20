@@ -17,7 +17,7 @@ return new class extends Migration
             $table->enum('item_type', ['packaging', 'finished_goods']);
             $table->unsignedBigInteger('item_id'); // packaging_item_id or product_id
             $table->unsignedBigInteger('batch_id')->nullable(); // production_batch_id for finished goods
-            $table->decimal('qty', 10, 3);
+            $table->integer('qty');
             $table->string('uom');
             $table->enum('movement_type', ['in', 'out']);
             $table->string('reference_type'); // 'receipt', 'production', 'shipment'

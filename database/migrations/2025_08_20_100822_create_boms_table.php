@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
             $table->foreignId('packaging_item_id')->constrained('packaging_items')->onDelete('cascade');
-            $table->decimal('qty_per_unit', 10, 3);
+            $table->integer('qty_per_unit');
             $table->string('uom')->default('pcs');
             $table->timestamps();
 

@@ -74,9 +74,8 @@ class ProductionBatchForm
                                 TextInput::make('qty_produced')
                                     ->label('Quantity to Produce')
                                     ->required()
-                                    ->numeric()
-                                    ->minValue(0.001)
-                                    ->step(0.001)
+                                    ->integer()
+                                    ->minValue(1)
                                     ->live(debounce: 500)
                                     ->placeholder('e.g., 100')
                                     ->helperText('Number of cartons to produce')
@@ -220,8 +219,8 @@ class ProductionBatchForm
                                         $html .= '<br><span class="text-sm text-gray-600">Code: ' . e($bom->packagingItem->packaging_code) . '</span>';
                                         $html .= '</div>';
                                         $html .= '<div class="text-right">';
-                                        $html .= '<div class="' . $statusColor . ' font-medium">' . $statusIcon . ' Required: ' . number_format($requiredQty, 3) . ' ' . e($bom->uom) . '</div>';
-                                        $html .= '<div class="text-sm text-gray-600">Available: ' . number_format($currentStock, 3) . ' pcs</div>';
+                                        $html .= '<div class="' . $statusColor . ' font-medium">' . $statusIcon . ' Required: ' . number_format($requiredQty) . ' ' . e($bom->uom) . '</div>';
+                                        $html .= '<div class="text-sm text-gray-600">Available: ' . number_format($currentStock) . ' pcs</div>';
                                         $html .= '</div>';
                                         $html .= '</div>';
                                     }

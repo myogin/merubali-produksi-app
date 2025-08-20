@@ -79,7 +79,7 @@ class StockMovementsTable
 
                 TextColumn::make('qty')
                     ->label('Quantity')
-                    ->numeric(decimalPlaces: 3)
+                    ->numeric()
                     ->sortable()
                     ->color(
                         fn(string $state, $record): string =>

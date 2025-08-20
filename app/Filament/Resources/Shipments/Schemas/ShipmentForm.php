@@ -148,9 +148,8 @@ class ShipmentForm
                                         TextInput::make('qty_shipped')
                                             ->label('Quantity to Ship')
                                             ->required()
-                                            ->numeric()
-                                            ->minValue(0.001)
-                                            ->step(0.001)
+                                            ->integer()
+                                            ->minValue(1)
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 50')
                                             ->helperText('Quantity to ship (cartons)')
@@ -239,9 +238,9 @@ class ShipmentForm
                                         $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
                                         $html .= '<div><strong>Product:</strong> ' . e($batch->product->name) . '</div>';
                                         $html .= '<div><strong>Production Date:</strong> ' . e($batch->production_date->format('Y-m-d')) . '</div>';
-                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batch->qty_produced, 3) . ' cartons</div>';
-                                        $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped, 3) . ' cartons</div>';
-                                        $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock, 3) . ' cartons</div>';
+                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batch->qty_produced) . ' cartons</div>';
+                                        $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
+                                        $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
                                         $html .= '</div>';
 
                                         if ($qtyToShip) {
@@ -252,7 +251,7 @@ class ShipmentForm
                                             } else {
                                                 $newRemaining = $remainingStock - $qtyToShip;
                                                 $html .= '<div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">';
-                                                $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining, 3) . ' cartons remaining</p>';
+                                                $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining) . ' cartons remaining</p>';
                                                 $html .= '</div>';
                                             }
                                         }

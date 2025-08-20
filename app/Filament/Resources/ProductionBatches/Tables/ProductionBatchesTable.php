@@ -41,7 +41,7 @@ class ProductionBatchesTable
 
                 TextColumn::make('qty_produced')
                     ->label('Qty Produced')
-                    ->numeric(decimalPlaces: 3)
+                    ->numeric()
                     ->sortable()
                     ->suffix(' cartons'),
 
@@ -50,7 +50,7 @@ class ProductionBatchesTable
                     ->getStateUsing(function ($record) {
                         return $record->getRemainingStock();
                     })
-                    ->numeric(decimalPlaces: 3)
+                    ->numeric()
                     ->suffix(' cartons')
                     ->color(fn($state) => $state > 0 ? 'success' : ($state == 0 ? 'warning' : 'danger')),
 
@@ -59,7 +59,7 @@ class ProductionBatchesTable
                     ->getStateUsing(function ($record) {
                         return $record->getTotalShipped();
                     })
-                    ->numeric(decimalPlaces: 3)
+                    ->numeric()
                     ->suffix(' cartons')
                     ->toggleable(isToggledHiddenByDefault: true),
 

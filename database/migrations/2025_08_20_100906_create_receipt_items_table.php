@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('receipt_id')->constrained('receipts')->onDelete('cascade');
             $table->foreignId('packaging_item_id')->constrained('packaging_items')->onDelete('cascade');
-            $table->decimal('qty_received', 10, 3);
+            $table->integer('qty_received');
             $table->string('uom')->default('pcs');
             $table->text('notes')->nullable();
             $table->timestamps();

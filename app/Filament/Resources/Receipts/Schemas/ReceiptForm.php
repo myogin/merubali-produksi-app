@@ -84,9 +84,8 @@ class ReceiptForm
                                         TextInput::make('qty_received')
                                             ->label('Quantity Received')
                                             ->required()
-                                            ->numeric()
-                                            ->minValue(0.001)
-                                            ->step(0.001)
+                                            ->integer()
+                                            ->minValue(1)
                                             ->placeholder('e.g., 1000')
                                             ->helperText('Quantity received'),
 

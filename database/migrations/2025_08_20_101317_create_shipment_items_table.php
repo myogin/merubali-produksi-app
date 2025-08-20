@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('shipment_id')->constrained('shipments')->onDelete('cascade');
             $table->foreignId('production_batch_id')->constrained('production_batches')->onDelete('cascade');
-            $table->decimal('qty_shipped', 10, 3);
+            $table->integer('qty_shipped');
             $table->string('uom')->default('cartons');
             $table->text('notes')->nullable();
             $table->timestamps();
