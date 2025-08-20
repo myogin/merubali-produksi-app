@@ -20,6 +20,9 @@ WORKDIR /var/www/html
 # ---------- Dependencies ----------
 FROM php-base AS deps
 COPY composer.json composer.lock ./
+# (opsional) biar Composer aman memory-nya
+ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
 # ---------- Frontend build ----------
@@ -28,6 +31,10 @@ WORKDIR /app
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
 RUN npm ci || npm i
 COPY . .
+
+# >>> TAMBAH: bawa vendor dari stage deps agar Vite bisa resolve import Filament
+COPY --from=deps /var/www/html/vendor ./vendor
+
 RUN npm run build
 
 # ---------- Production image ----------
@@ -60,9 +67,7 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
  && find storage -type f -exec chmod 664 {} \; \
  && chmod -R 775 bootstrap/cache
 
-# Expose HTTP
 EXPOSE 80
-
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
