@@ -16,11 +16,14 @@ class DatabaseSeeder extends Seeder
         // Run the role and permission seeder first
         $this->call(RolePermissionSeeder::class);
 
-        // User::factory(10)->create();
+        // Create admin user with role assignment
+        $this->call(UserSeeder::class);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Seed master data
+        $this->call(ProductSeeder::class);
+        $this->call(PackagingItemSeeder::class);
+        $this->call(BomSeeder::class);
+
+        // User::factory(10)->create();
     }
 }
