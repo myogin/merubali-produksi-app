@@ -16,6 +16,9 @@ use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Log;
+use Filament\Notifications\Notification;
+use Closure;
 
 class ProductionBatchForm
 {
@@ -59,7 +62,7 @@ class ProductionBatchForm
                                     ->preload()
                                     ->getOptionLabelFromRecordUsing(fn(Product $record): string => "{$record->product_code} - {$record->name}")
                                     ->live()
-                                    ->afterStateUpdated(function (Set $set, Get $get, $state) {
+                                    ->afterStateUpdated(function ($set, $get, $state) {
                                         // Clear qty when product changes to trigger BOM recalculation
                                         $set('qty_produced', null);
                                     })
@@ -76,7 +79,76 @@ class ProductionBatchForm
                                     ->step(0.001)
                                     ->live(debounce: 500)
                                     ->placeholder('e.g., 100')
-                                    ->helperText('Number of cartons to produce'),
+                                    ->helperText('Number of cartons to produce')
+                                    ->afterStateUpdated(function ($set, $get, $state) {
+                                        // Validate material availability when quantity changes
+                                        if ($state && $get('product_id')) {
+                                            try {
+                                                $boms = Bom::where('product_id', $get('product_id'))
+                                                    ->with('packagingItem')
+                                                    ->get();
+
+                                                $insufficientMaterials = [];
+
+                                                foreach ($boms as $bom) {
+                                                    $requiredQty = $bom->qty_per_unit * $state;
+                                                    $currentStock = StockMovement::where('item_type', 'packaging')
+                                                        ->where('item_id', $bom->packaging_item_id)
+                                                        ->selectRaw('SUM(CASE WHEN movement_type = "in" THEN qty ELSE -qty END) as current_stock')
+                                                        ->value('current_stock') ?? 0;
+
+                                                    if ($currentStock < $requiredQty) {
+                                                        $insufficientMaterials[] = $bom->packagingItem->name;
+                                                    }
+                                                }
+
+                                                if (!empty($insufficientMaterials)) {
+                                                    Notification::make()
+                                                        ->title('Insufficient Materials')
+                                                        ->body('Not enough stock for: ' . implode(', ', $insufficientMaterials))
+                                                        ->warning()
+                                                        ->send();
+                                                }
+                                            } catch (\Exception $e) {
+                                                Notification::make()
+                                                    ->title('Validation Error')
+                                                    ->body('Unable to validate material requirements.')
+                                                    ->danger()
+                                                    ->send();
+                                            }
+                                        }
+                                    })
+                                    ->rules([
+                                        function () {
+                                            return function (string $attribute, $value, Closure $fail) {
+                                                if ($value) {
+                                                    $formData = request()->input('data', []);
+                                                    $productId = $formData['product_id'] ?? null;
+
+                                                    if ($productId) {
+                                                        try {
+                                                            $boms = Bom::where('product_id', $productId)->with('packagingItem')->get();
+
+                                                            foreach ($boms as $bom) {
+                                                                $requiredQty = $bom->qty_per_unit * $value;
+                                                                $currentStock = StockMovement::where('item_type', 'packaging')
+                                                                    ->where('item_id', $bom->packaging_item_id)
+                                                                    ->selectRaw('SUM(CASE WHEN movement_type = "in" THEN qty ELSE -qty END) as current_stock')
+                                                                    ->value('current_stock') ?? 0;
+
+                                                                if ($currentStock < $requiredQty) {
+                                                                    $fail("Insufficient stock for {$bom->packagingItem->name}. Required: {$requiredQty}, Available: {$currentStock}");
+                                                                    break;
+                                                                }
+                                                            }
+                                                        } catch (\Exception $e) {
+                                                            $fail('Unable to validate material requirements.');
+                                                        }
+                                                    }
+                                                }
+                                            };
+                                        },
+                                    ]),
 
                                 TextInput::make('uom')
                                     ->label('Unit of Measure')
@@ -100,7 +172,7 @@ class ProductionBatchForm
                         TextEntry::make('bom_requirements')
                             ->label('Material Requirements')
                             ->html() // enable HTML output
-                            ->getStateUsing(function (Get $get): HtmlString {
+                            ->getStateUsing(function ($get): HtmlString {
                                 $productId = $get('product_id');
                                 $qtyToProduce = $get('qty_produced');
 
@@ -108,65 +180,76 @@ class ProductionBatchForm
                                     return new HtmlString('<p class="text-gray-500">Select a product and quantity to see material requirements.</p>');
                                 }
 
-                                $boms = \App\Models\Bom::where('product_id', $productId)
-                                    ->with('packagingItem')
-                                    ->get();
+                                try {
+                                    $boms = Bom::where('product_id', $productId)
+                                        ->with('packagingItem')
+                                        ->get();
 
-                                if ($boms->isEmpty()) {
-                                    return new HtmlString('<p class="text-red-600 font-medium">⚠️ No BOM found for this product!</p>');
+                                    if ($boms->isEmpty()) {
+                                        return new HtmlString('<p class="text-red-600 font-medium">⚠️ No BOM found for this product!</p>');
+                                    }
+
+                                    // Get all packaging item IDs to optimize stock queries
+                                    $packagingItemIds = $boms->pluck('packaging_item_id')->unique();
+
+                                    // Fetch all stock data in one query
+                                    $stockData = StockMovement::where('item_type', 'packaging')
+                                        ->whereIn('item_id', $packagingItemIds)
+                                        ->selectRaw('item_id, SUM(CASE WHEN movement_type = "in" THEN qty ELSE -qty END) as current_stock')
+                                        ->groupBy('item_id')
+                                        ->pluck('current_stock', 'item_id');
+
+                                    $html = '<div class="space-y-3">';
+                                    $html .= '<h4 class="font-medium text-gray-900">Required Materials:</h4>';
+
+                                    $allStockSufficient = true;
+
+                                    foreach ($boms as $bom) {
+                                        $requiredQty = $bom->qty_per_unit * $qtyToProduce;
+                                        $currentStock = $stockData[$bom->packaging_item_id] ?? 0;
+
+                                        $isStockSufficient = $currentStock >= $requiredQty;
+                                        $allStockSufficient = $allStockSufficient && $isStockSufficient;
+
+                                        $statusIcon = $isStockSufficient ? '✅' : '❌';
+                                        $statusColor = $isStockSufficient ? 'text-green-600' : 'text-red-600';
+
+                                        $html .= '<div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">';
+                                        $html .= '<div>';
+                                        $html .= '<span class="font-medium">' . e($bom->packagingItem->name) . '</span>';
+                                        $html .= '<br><span class="text-sm text-gray-600">Code: ' . e($bom->packagingItem->packaging_code) . '</span>';
+                                        $html .= '</div>';
+                                        $html .= '<div class="text-right">';
+                                        $html .= '<div class="' . $statusColor . ' font-medium">' . $statusIcon . ' Required: ' . number_format($requiredQty, 3) . ' ' . e($bom->uom) . '</div>';
+                                        $html .= '<div class="text-sm text-gray-600">Available: ' . number_format($currentStock, 3) . ' pcs</div>';
+                                        $html .= '</div>';
+                                        $html .= '</div>';
+                                    }
+
+                                    if (!$allStockSufficient) {
+                                        $html .= '<div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">';
+                                        $html .= '<p class="text-red-800 font-medium">⚠️ Insufficient stock for some materials!</p>';
+                                        $html .= '<p class="text-red-700 text-sm">Please ensure adequate packaging stock before proceeding.</p>';
+                                        $html .= '</div>';
+                                    } else {
+                                        $html .= '<div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">';
+                                        $html .= '<p class="text-green-800 font-medium">✅ All materials are available!</p>';
+                                        $html .= '<p class="text-green-700 text-sm">Production can proceed.</p>';
+                                        $html .= '</div>';
+                                    }
+
+                                    $html .= '</div>';
+
+                                    return new HtmlString($html);
+                                } catch (\Exception $e) {
+                                    Log::error('Error loading BOM requirements for production batch form: ' . $e->getMessage());
+                                    return new HtmlString('<p class="text-red-600">Error loading material requirements. Please try again.</p>');
                                 }
-
-                                $html = '<div class="space-y-3">';
-                                $html .= '<h4 class="font-medium text-gray-900">Required Materials:</h4>';
-
-                                $allStockSufficient = true;
-
-                                foreach ($boms as $bom) {
-                                    $requiredQty = $bom->qty_per_unit * $qtyToProduce;
-
-                                    $currentStock = \App\Models\StockMovement::where('item_type', 'packaging')
-                                        ->where('item_id', $bom->packaging_item_id)
-                                        ->selectRaw('SUM(CASE WHEN movement_type = "in" THEN qty ELSE -qty END) as current_stock')
-                                        ->value('current_stock') ?? 0;
-
-                                    $isStockSufficient = $currentStock >= $requiredQty;
-                                    $allStockSufficient = $allStockSufficient && $isStockSufficient;
-
-                                    $statusIcon = $isStockSufficient ? '✅' : '❌';
-                                    $statusColor = $isStockSufficient ? 'text-green-600' : 'text-red-600';
-
-                                    $html .= '<div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">';
-                                    $html .= '<div>';
-                                    $html .= '<span class="font-medium">' . e($bom->packagingItem->name) . '</span>';
-                                    $html .= '<br><span class="text-sm text-gray-600">Code: ' . e($bom->packagingItem->packaging_code) . '</span>';
-                                    $html .= '</div>';
-                                    $html .= '<div class="text-right">';
-                                    $html .= '<div class="' . $statusColor . ' font-medium">' . $statusIcon . ' Required: ' . number_format($requiredQty, 3) . ' ' . e($bom->uom) . '</div>';
-                                    $html .= '<div class="text-sm text-gray-600">Available: ' . number_format($currentStock, 3) . ' pcs</div>';
-                                    $html .= '</div>';
-                                    $html .= '</div>';
-                                }
-
-                                if (!$allStockSufficient) {
-                                    $html .= '<div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">';
-                                    $html .= '<p class="text-red-800 font-medium">⚠️ Insufficient stock for some materials!</p>';
-                                    $html .= '<p class="text-red-700 text-sm">Please ensure adequate packaging stock before proceeding.</p>';
-                                    $html .= '</div>';
-                                } else {
-                                    $html .= '<div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">';
-                                    $html .= '<p class="text-green-800 font-medium">✅ All materials are available!</p>';
-                                    $html .= '<p class="text-green-700 text-sm">Production can proceed.</p>';
-                                    $html .= '</div>';
-                                }
-
-                                $html .= '</div>';
-
-                                return new HtmlString($html);
                             })
                             ->columnSpanFull(),
                     ])
                     ->columns(1)
-                    ->visible(fn(Get $get): bool => $get('product_id') && $get('qty_produced')),
+                    ->visible(fn($get): bool => $get('product_id') && $get('qty_produced')),
             ]);
     }
 }
