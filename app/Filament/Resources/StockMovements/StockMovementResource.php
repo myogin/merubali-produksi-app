@@ -9,6 +9,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class StockMovementResource extends Resource
 {
@@ -22,7 +23,9 @@ class StockMovementResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Stock Movements';
 
-    protected static ?int $navigationSort = 10;
+    protected static string|UnitEnum|null $navigationGroup = 'Transactions';
+
+    protected static ?int $navigationSort = 4;
 
     public static function table(Table $table): Table
     {

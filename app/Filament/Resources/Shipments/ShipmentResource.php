@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class ShipmentResource extends Resource
 {
@@ -26,7 +27,9 @@ class ShipmentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Shipments';
 
-    protected static ?int $navigationSort = 2;
+    protected static string|UnitEnum|null $navigationGroup = 'Transactions';
+
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $recordTitleAttribute = 'shipment_number';
 
