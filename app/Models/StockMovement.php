@@ -33,8 +33,7 @@ class StockMovement extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'item_id')
-            ->where('item_type', 'finished_goods');
+        return $this->belongsTo(Product::class, 'item_id');
     }
 
     /**
@@ -42,8 +41,7 @@ class StockMovement extends Model
      */
     public function packagingItem(): BelongsTo
     {
-        return $this->belongsTo(PackagingItem::class, 'item_id')
-            ->where('item_type', 'packaging');
+        return $this->belongsTo(PackagingItem::class, 'item_id');
     }
 
     /**
@@ -59,8 +57,7 @@ class StockMovement extends Model
      */
     public function receipt(): BelongsTo
     {
-        return $this->belongsTo(Receipt::class, 'reference_id')
-            ->where('reference_type', 'receipt');
+        return $this->belongsTo(Receipt::class, 'reference_id');
     }
 
     /**
@@ -68,8 +65,7 @@ class StockMovement extends Model
      */
     public function shipment(): BelongsTo
     {
-        return $this->belongsTo(Shipment::class, 'reference_id')
-            ->where('reference_type', 'shipment');
+        return $this->belongsTo(Shipment::class, 'reference_id');
     }
 
     /**
@@ -77,8 +73,7 @@ class StockMovement extends Model
      */
     public function productionBatchReference(): BelongsTo
     {
-        return $this->belongsTo(ProductionBatch::class, 'reference_id')
-            ->where('reference_type', 'production');
+        return $this->belongsTo(ProductionBatch::class, 'reference_id');
     }
 
     /**
