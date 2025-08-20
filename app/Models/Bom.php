@@ -18,7 +18,7 @@ class Bom extends Model
     ];
 
     protected $casts = [
-        'qty_per_unit' => 'decimal:2',
+        'qty_per_unit' => 'decimal:3',
     ];
 
     /**

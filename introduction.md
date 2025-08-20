@@ -2,7 +2,7 @@
 
 **Perusahaan**: CV. Merubali Natural  
 **Versi**: 1.0 (Draft Laravel)  
-**Penyusun**: Yoga (dibantu AI)
+**Penyusun**: Yogi
 
 ---
 
@@ -22,40 +22,32 @@ Tujuannya: melacak **stok kemasan** dan **barang jadi per batch**, dengan alur:
 
 ### 1. Master Data
 
--   **products**
+-**products**
 
     -   Kode barang jadi (contoh: `CCO-CTN50`, `CCO-CTN24`)
     -   Nama barang jadi (contoh: `STP-CCO-50`, `STP-CCO-24`)
 
--   **packaging_items**
+-**packaging_items**
 
     -   Kode kemasan (contoh: `STP-CCO-50`, `CTN50`, `CTN24`)
     -   Nama kemasan
     -   Satuan dasar (`pcs`)
 
--   **boms** (Bill of Materials)
-    -   Definisi kebutuhan kemasan untuk membuat 1 karton produk jadi
-    -   Contoh:
-        -   `CCO-CTN50` → 50 × `STP-CCO-50` + 1 × `CTN50`
-        -   `CCO-CTN24` → 24 × `STP-CCO-50` + 1 × `CTN24`
+-**boms** (Bill of Materials) - Definisi kebutuhan kemasan untuk membuat 1 karton produk jadi - Contoh: - `CCO-CTN50` → 50 × `STP-CCO-50` + 1 × `CTN50` - `CCO-CTN24` → 24 × `STP-CCO-50` + 1 × `CTN24`
 
 ### 2. Transaksi
 
--   **receipts** (header penerimaan kemasan)
--   **receipt_items** (detail penerimaan kemasan)
+-**receipts** (header penerimaan kemasan) -**receipt_items** (detail penerimaan kemasan)
 
--   **production_batches** (batch produksi barang jadi)
+-**production_batches** (batch produksi barang jadi)
 
     -   Menyimpan No PO, kode batch (MFD), jumlah produksi, dan catatan.
 
--   **shipments** (header pengiriman barang jadi)
--   **shipment_items** (detail pengiriman per batch produk)
+-**shipments** (header pengiriman barang jadi) -**shipment_items** (detail pengiriman per batch produk)
 
 ### 3. Audit / Buku Besar
 
--   **stock_movements**
-    -   Semua pergerakan stok: +/− kemasan, + barang jadi, − barang jadi.
-    -   Menjadi **sumber tunggal kebenaran** untuk laporan stok & audit trail.
+-**stock_movements** - Semua pergerakan stok: +/− kemasan, + barang jadi, − barang jadi. - Menjadi **sumber tunggal kebenaran** untuk laporan stok & audit trail.
 
 ---
 
@@ -63,27 +55,24 @@ Tujuannya: melacak **stok kemasan** dan **barang jadi per batch**, dengan alur:
 
 ### 1. Penerimaan (Receiving)
 
--   User isi form penerimaan (tanggal, jenis kemasan, jumlah diterima, link surat jalan).
--   Sistem simpan ke `receipts` + `receipt_items`.
--   Tambah stok kemasan di `stock_movements` (qty positif).
+-User isi form penerimaan (tanggal, jenis kemasan, jumlah diterima, link surat jalan).
+-Sistem simpan ke `receipts` + `receipt_items`.
+-Tambah stok kemasan di `stock_movements` (qty positif).
 
 ### 2. Produksi (Production)
 
--   User isi form produksi (tanggal, No PO, jenis produk, jumlah karton, kode batch).
--   Sistem cek BOM produk → hitung total kebutuhan kemasan.
--   Validasi stok kemasan cukup.
--   Simpan batch ke `production_batches`.
--   Catat ke `stock_movements`:
-    -   **Kemasan (−)** sesuai BOM × jumlah karton.
-    -   **Barang jadi (+)** per batch.
+-User isi form produksi (tanggal, No PO, jenis produk, jumlah karton, kode batch).
+-Sistem cek BOM produk → hitung total kebutuhan kemasan.
+-Validasi stok kemasan cukup.
+-Simpan batch ke `production_batches`.
+-Catat ke `stock_movements`: -**Kemasan (−)** sesuai BOM × jumlah karton. -**Barang jadi (+)** per batch.
 
 ### 3. Pengiriman (Shipping)
 
--   User isi form pengiriman (tanggal, tujuan, No SJ, batch, jumlah karton).
--   Sistem cek sisa stok batch.
--   Jika cukup, buat `shipments` + `shipment_items`.
--   Catat ke `stock_movements`:
-    -   **Barang jadi (−)** per batch.
+-User isi form pengiriman (tanggal, tujuan, No SJ, batch, jumlah karton).
+-Sistem cek sisa stok batch.
+-Jika cukup, buat `shipments` + `shipment_items`.
+-Catat ke `stock_movements`: -**Barang jadi (−)** per batch.
 
 ---
 
@@ -117,11 +106,10 @@ Tujuannya: melacak **stok kemasan** dan **barang jadi per batch**, dengan alur:
 
 ## 📈 Laporan & Query Penting
 
--   **Stok Kemasan Saat Ini**
+-**Stok Kemasan Saat Ini**
 
-```sql
+-sql
 SELECT packaging_item_id, SUM(qty) AS stok_pcs
 FROM stock_movements
 WHERE item_type='packaging'
 GROUP BY packaging_item_id;
-```
