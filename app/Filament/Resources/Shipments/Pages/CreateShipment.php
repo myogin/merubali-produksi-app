@@ -27,22 +27,30 @@ class CreateShipment extends CreateRecord
             'notes' => $data['notes'] ?? null,
         ]);
 
-        // Create shipment items
-        foreach ($data['shipmentItems'] as $itemData) {
-            $record->shipmentItems()->create($itemData);
-        }
-
-        // Generate stock movements
-        $this->generateStockMovements($record);
+        // Note: Shipment items are handled automatically by Filament's relationship repeater
+        // The items will be created after this method returns
 
         return $record;
     }
 
+    protected function afterCreate(): void
+    {
+        // Generate stock movements after the record and its relationships are created
+        $this->generateStockMovements($this->record);
+    }
+
     protected function validateStockAvailability(array $data): void
     {
+        // Get shipment items from the form data
+        $shipmentItems = $data['shipmentItems'] ?? [];
+
+        if (empty($shipmentItems)) {
+            return;
+        }
+
         $insufficientItems = [];
 
-        foreach ($data['shipmentItems'] as $itemData) {
+        foreach ($shipmentItems as $itemData) {
             $batch = ProductionBatch::find($itemData['production_batch_id']);
             if (!$batch) {
                 continue;
@@ -88,7 +96,7 @@ class CreateShipment extends CreateRecord
                 'item_id' => $item->productionBatch->product_id,
                 'batch_id' => $item->production_batch_id,
                 'qty' => $item->qty_shipped,
-                'uom' => $item->uom,
+                'uom' => $item->uom ?? 'cartons', // Default to 'cartons' if uom is null
                 'movement_type' => 'out',
                 'reference_type' => 'shipment',
                 'reference_id' => $record->id,

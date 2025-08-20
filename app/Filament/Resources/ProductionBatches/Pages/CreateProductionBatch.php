@@ -110,7 +110,7 @@ class CreateProductionBatch extends CreateRecord
             'item_id' => $record->product_id,
             'batch_id' => $record->id,
             'qty' => $record->qty_produced,
-            'uom' => $record->uom,
+            'uom' => 'cartons', // Finished goods are counted in pieces/cartons
             'movement_type' => 'in',
             'reference_type' => 'production',
             'reference_id' => $record->id,
