@@ -117,10 +117,9 @@ COPY --from=deps /var/www/html/vendor ./vendor
 
 # Copy built assets from frontend stage
 COPY --from=frontend /app/public/build ./public/build
-COPY --from=frontend /app/public/mix-manifest.json ./public/mix-manifest.json 2>/dev/null || true
 
-# Ensure all public assets are available
-COPY --from=deps /var/www/html/public/vendor ./public/vendor 2>/dev/null || true
+# Ensure vendor assets directory exists
+RUN mkdir -p ./public/vendor
 
 # Final asset publishing (safety net)
 RUN php artisan vendor:publish --tag=livewire:assets --force 2>/dev/null || echo "Livewire assets already published" \
