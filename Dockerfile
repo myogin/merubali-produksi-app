@@ -1,8 +1,4 @@
-# ===============================================
-# MerubaliStock - EasyPanel Optimized Dockerfile
-# Simple & effective for container platforms
-# ===============================================
-
+# ---------- Base PHP with extensions ----------
 FROM php:8.3-fpm AS php-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,87 +12,60 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && docker-php-ext-enable redis \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 WORKDIR /var/www/html
 
 # ---------- Dependencies ----------
 FROM php-base AS deps
-
 COPY composer.json composer.lock ./
+# (opsional) biar Composer aman memory-nya
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
-COPY . .
-
-# Create .env from .env.example if needed (EasyPanel compatibility)
-RUN if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
-
-RUN mkdir -p public/livewire public/vendor storage/app storage/framework/cache \
-    storage/framework/sessions storage/framework/testing storage/framework/views \
-    storage/logs bootstrap/cache resources/views/filament app/Filament \
- && php artisan vendor:publish --all --force
-
-# ---------- Frontend ----------
-FROM node:20-slim AS frontend
-
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
-
+# ---------- Frontend build ----------
+FROM node:20 AS frontend
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
-
+COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
+RUN npm ci || npm i
 COPY . .
+
+# >>> TAMBAH: bawa vendor dari stage deps agar Vite bisa resolve import Filament
 COPY --from=deps /var/www/html/vendor ./vendor
-COPY --from=deps /var/www/html/public ./public
 
-RUN mkdir -p storage/framework/views app/Filament resources/views/filament bootstrap/cache public/build/assets
+RUN npm run build
 
-# Simple build strategy
-RUN npm run build || npx vite build || ( \
-    echo "Build failed, creating fallback assets..." && \
-    mkdir -p public/build/assets && \
-    HASH=$(date +%s) && \
-    echo "body{font-family:Inter,sans-serif}" > public/build/assets/app-$HASH.css && \
-    echo "console.log('App loaded')" > public/build/assets/app-$HASH.js && \
-    echo ".fi-body{font-family:Inter}" > public/build/assets/theme-$HASH.css && \
-    echo "{\"resources/css/app.css\":{\"file\":\"assets/app-$HASH.css\"},\"resources/js/app.js\":{\"file\":\"assets/app-$HASH.js\"},\"resources/css/filament/admin/theme.css\":{\"file\":\"assets/theme-$HASH.css\"}}" > public/build/manifest.json \
-)
+# ---------- Production image ----------
+FROM php-base AS prod
 
-RUN ls -la public/build/ && ls -la public/build/assets/ && echo "Frontend ready"
-
-# ---------- Production ----------
-FROM php-base AS production
-
+# Nginx config
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
+
+# Supervisor config
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Entrypoint
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /var/www/html
 
+# Copy app source
 COPY . .
+
+# Copy vendor from deps stage
 COPY --from=deps /var/www/html/vendor ./vendor
-COPY --from=deps /var/www/html/public/vendor ./public/vendor
+
+# Copy built assets (Vite) dari stage frontend
 COPY --from=frontend /app/public/build ./public/build
 
-# EasyPanel compatibility - create .env from example
-RUN if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
-
-RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessions \
-    storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
- && chown -R www-data:www-data storage bootstrap/cache public \
+# Laravel permissions
+RUN chown -R www-data:www-data storage bootstrap/cache \
  && find storage -type d -exec chmod 775 {} \; \
  && find storage -type f -exec chmod 664 {} \; \
- && chmod -R 775 bootstrap/cache \
- && chmod -R 755 public
-
-RUN php artisan vendor:publish --tag=livewire:assets --force || true \
- && php artisan vendor:publish --tag=filament-assets --force || true
+ && chmod -R 775 bootstrap/cache
 
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost/health || exit 1
