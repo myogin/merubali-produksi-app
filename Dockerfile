@@ -33,38 +33,22 @@ RUN php artisan vendor:publish --all --force || echo "Some assets may not be pub
 FROM node:20 AS frontend
 WORKDIR /app
 
-# Environment variables untuk Vite build
 ENV NODE_ENV=production
 ENV VITE_APP_NAME=MerubaliStock
 ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
-# ✅ PERBAIKAN: Copy package.json saja dulu, hapus package-lock.json
 COPY package.json ./
+RUN npm install --legacy-peer-deps
 
-# ✅ Fresh install dengan ignore optional dependencies (TailwindCSS 4.0 fix)
-RUN echo "=== Installing dependencies fresh ===" && \
-    npm install --ignore-optional --no-package-lock --legacy-peer-deps && \
-    echo "=== Verifying Vite installation ===" && \
-    npm list vite || echo "Vite listed" && \
-    npx vite --version
-
-# Copy vendor dari deps stage (sudah include published assets)
 COPY --from=deps /var/www/html/vendor ./vendor
-
-# Copy source code
 COPY . .
-
-# Copy pre-published assets dari deps stage
 COPY --from=deps /var/www/html/public ./public
 
-# ✅ Build dengan error handling
-RUN echo "=== Building with Vite ===" && \
-    npx vite build --mode production
+# Create directories yang dibutuhkan TailwindCSS 4.0
+RUN mkdir -p storage/framework/views app/Filament resources/views/filament
 
-# Verify build output
-RUN echo "=== Build verification ===" && \
-    ls -la public/build/ && \
-    ls -la public/livewire/ || echo "Livewire assets not found"
+# Build dengan error logging
+RUN npm run build 2>&1 || (echo "Build error details:" && cat /tmp/vite-error.log 2>/dev/null && exit 1)
 
 # ---------- Production image ----------
 FROM php-base AS prod
