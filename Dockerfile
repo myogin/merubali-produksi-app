@@ -36,7 +36,7 @@ RUN npm ci
 
 # Copy source files yang dibutuhkan untuk build
 COPY resources/ ./resources/
-COPY vite.config.js tailwind.config.js ./
+COPY vite.config.js ./
 
 # Build assets
 RUN npm run build
