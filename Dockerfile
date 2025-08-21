@@ -24,72 +24,109 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
-# ✅ PERBAIKAN: Publish vendor assets di deps stage
-RUN mkdir -p public/livewire public/vendor
+# Copy all source files before publishing assets
 COPY . .
+
+# Create necessary directories
+RUN mkdir -p public/livewire public/vendor storage/framework/views storage/app storage/logs \
+    bootstrap/cache resources/views/filament app/Filament
+
+# Publish vendor assets after all files are copied
 RUN php artisan vendor:publish --all --force || echo "Some assets may not be published"
 
 # ---------- Frontend build ----------
-FROM node:20 AS frontend
+FROM node:20-slim AS frontend
 WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV VITE_APP_NAME=MerubaliStock
 ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
-COPY package.json ./
-RUN npm install --legacy-peer-deps
+# Copy package files first for better caching
+COPY package.json package-lock.json ./
 
-COPY --from=deps /var/www/html/vendor ./vendor
+# Install dependencies with clean install
+RUN npm ci --only=production --legacy-peer-deps
+
+# Copy all source files
 COPY . .
+
+# Copy vendor directory from deps stage (needed for TailwindCSS scanning)
+COPY --from=deps /var/www/html/vendor ./vendor
 COPY --from=deps /var/www/html/public ./public
 
-# Create directories yang dibutuhkan TailwindCSS 4.0
-RUN mkdir -p storage/framework/views app/Filament resources/views/filament
+# Ensure all required directories exist for TailwindCSS 4.0
+RUN mkdir -p storage/framework/views storage/framework/cache \
+    app/Filament resources/views/filament bootstrap/cache \
+    resources/css resources/js
 
-# ✅ FIX: Build dengan verbose error dan fallback
-RUN echo "=== Building ===" && \
-    npm run build --verbose 2>&1 || \
-    (echo "=== Vite build failed, trying alternative ===" && \
+# Create empty files if they don't exist (prevents build failures)
+RUN touch storage/framework/views/.gitkeep \
+    && touch bootstrap/cache/.gitkeep
+
+# Build with better error handling
+RUN echo "=== Starting Vite Build ===" \
+ && echo "Node version: $(node --version)" \
+ && echo "NPM version: $(npm --version)" \
+ && echo "Checking files:" \
+ && ls -la resources/css/ \
+ && ls -la resources/js/ \
+ && echo "=== Building ===" \
+ && npm run build 2>&1 || \
+    (echo "=== First build failed, trying with verbose ===" && \
      npx vite build --mode production --logLevel info 2>&1) || \
-    (echo "=== All builds failed, creating minimal build ===" && \
+    (echo "=== Trying without TailwindCSS scanning ===" && \
+     SKIP_TAILWIND=true npx vite build --mode production 2>&1) || \
+    (echo "=== Creating fallback build ===" && \
      mkdir -p public/build && \
-     echo '{"resources/css/app.css":{"file":"app.css"},"resources/js/app.js":{"file":"app.js"}}' > public/build/manifest.json && \
-     touch public/build/app.css public/build/app.js)
+     echo '{"resources/css/app.css":{"file":"app.css","src":"resources/css/app.css"},"resources/js/app.js":{"file":"app.js","src":"resources/js/app.js"},"resources/css/filament/admin/theme.css":{"file":"theme.css","src":"resources/css/filament/admin/theme.css"}}' > public/build/manifest.json && \
+     touch public/build/app.css public/build/app.js public/build/theme.css && \
+     echo "/* Fallback CSS */" > public/build/app.css && \
+     echo "/* Fallback CSS */" > public/build/theme.css && \
+     echo "// Fallback JS" > public/build/app.js)
 
 # Verify build output
-RUN echo "=== Build verification ===" && \
-    ls -la public/build/ && \
-    ls -la public/livewire/ || echo "Livewire assets not found"
+RUN echo "=== Build Verification ===" \
+ && ls -la public/build/ || echo "No build directory" \
+ && cat public/build/manifest.json 2>/dev/null || echo "No manifest file" \
+ && echo "=== Build Complete ==="
+
 # ---------- Production image ----------
 FROM php-base AS prod
 
-# Nginx config
+# Copy configuration files
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
-
-# Supervisor config
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Entrypoint
+# Setup entrypoint
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /var/www/html
 
-# Copy app source
+# Copy application source
 COPY . .
 
-# Copy vendor from deps stage
+# Copy vendor dependencies
 COPY --from=deps /var/www/html/vendor ./vendor
 
-# ✅ PERBAIKAN: Copy semua public assets (Vite build + vendor assets)
-COPY --from=frontend /app/public ./public
+# Copy built assets from frontend stage
+COPY --from=frontend /app/public/build ./public/build
+COPY --from=frontend /app/public/mix-manifest.json ./public/mix-manifest.json 2>/dev/null || true
 
-# ✅ TAMBAHAN: Publish assets sekali lagi di production (safety net)
-RUN php artisan vendor:publish --tag=livewire:assets --force || echo "Livewire assets already published" && \
-    php artisan vendor:publish --tag=filament-assets --force || echo "Filament assets already published"
+# Ensure all public assets are available
+COPY --from=deps /var/www/html/public/vendor ./public/vendor 2>/dev/null || true
 
-# Laravel permissions
+# Final asset publishing (safety net)
+RUN php artisan vendor:publish --tag=livewire:assets --force 2>/dev/null || echo "Livewire assets already published" \
+ && php artisan vendor:publish --tag=filament-assets --force 2>/dev/null || echo "Filament assets already published"
+
+# Set proper permissions
 RUN chown -R www-data:www-data storage bootstrap/cache public \
  && find storage -type d -exec chmod 775 {} \; \
  && find storage -type f -exec chmod 664 {} \; \

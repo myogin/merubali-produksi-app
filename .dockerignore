@@ -1,42 +1,63 @@
-# Node modules dan build artifacts
+# Node modules (will be installed in container)
 node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.npm
 
-# Vite dev dan build
+# Vite dev artifacts (will be built in container)
 .vite
 public/hot
-public/build
 
-# PHP dependencies (akan dicopy dari stage deps)
-vendor
+# Don't ignore public/build as it might contain pre-built assets
+# public/build
 
-# Laravel artifacts
+# PHP dependencies (will be installed in deps stage)
+# vendor
+
+# Laravel runtime artifacts
 storage/app/*
+!storage/app/.gitkeep
 storage/framework/cache/*
+!storage/framework/cache/.gitkeep
 storage/framework/sessions/*
+!storage/framework/sessions/.gitkeep
+storage/framework/testing/*
+!storage/framework/testing/.gitkeep
 storage/framework/views/*
+!storage/framework/views/.gitkeep
 storage/logs/*
+!storage/logs/.gitkeep
 bootstrap/cache/*
+!bootstrap/cache/.gitkeep
 
-# Environment files
+# Environment files (security)
 .env*
 !.env.example
 
 # OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # IDE files
-.vscode
-.idea
+.vscode/
+.idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
+.phpunit.cache
 
 # Git
-.git
+.git/
 .gitignore
+.gitattributes
 
 # Docker
 .dockerignore
@@ -44,12 +65,25 @@ Dockerfile*
 docker-compose*
 
 # CI/CD
-.github
+.github/
+.gitlab-ci.yml
 
 # Testing
 phpunit.xml
 .phpunit.result.cache
+coverage/
+.coverage
+
+# Build tools
+webpack.mix.js
 
 # Documentation
 README.md
 *.md
+LICENSE
+CHANGELOG*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
