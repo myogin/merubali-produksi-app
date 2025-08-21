@@ -22,7 +22,9 @@ FROM php-base AS php-deps
 COPY composer.json composer.lock ./
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+# Install tanpa scripts dulu (karena Laravel belum ready)
+RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
 # ---------- Frontend build ----------
 FROM node:22-alpine AS frontend-build
@@ -69,7 +71,7 @@ COPY --from=php-deps /var/www/html/vendor ./vendor
 # Copy built assets dari frontend-build stage
 COPY --from=frontend-build /app/public/build ./public/build
 
-# Setup Laravel (cukup package discovery)
+# Setup Laravel dengan Livewire support (jalankan composer scripts setelah semua files ready)
 RUN composer dump-autoload --optimize && \
     php artisan package:discover --ansi
 
