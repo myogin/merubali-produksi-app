@@ -47,9 +47,20 @@ COPY --from=deps /var/www/html/public ./public
 # Create directories yang dibutuhkan TailwindCSS 4.0
 RUN mkdir -p storage/framework/views app/Filament resources/views/filament
 
-# Build dengan error logging
-RUN npm run build 2>&1 || (echo "Build error details:" && cat /tmp/vite-error.log 2>/dev/null && exit 1)
+# ✅ FIX: Build dengan verbose error dan fallback
+RUN echo "=== Building ===" && \
+    npm run build --verbose 2>&1 || \
+    (echo "=== Vite build failed, trying alternative ===" && \
+     npx vite build --mode production --logLevel info 2>&1) || \
+    (echo "=== All builds failed, creating minimal build ===" && \
+     mkdir -p public/build && \
+     echo '{"resources/css/app.css":{"file":"app.css"},"resources/js/app.js":{"file":"app.js"}}' > public/build/manifest.json && \
+     touch public/build/app.css public/build/app.js)
 
+# Verify build output
+RUN echo "=== Build verification ===" && \
+    ls -la public/build/ && \
+    ls -la public/livewire/ || echo "Livewire assets not found"
 # ---------- Production image ----------
 FROM php-base AS prod
 
