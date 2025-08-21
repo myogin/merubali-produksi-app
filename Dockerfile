@@ -34,25 +34,16 @@ COPY package.json package-lock.json* ./
 # Install dependencies
 RUN npm ci
 
-# Copy semua file yang dibutuhkan
+# Copy semua file yang dibutuhkan untuk build
 COPY resources/ ./resources/
 COPY public/ ./public/
 COPY vite.config.js ./
 
-# Create missing Filament CSS directory and empty file if needed
-RUN mkdir -p resources/css/filament/admin && \
-    touch resources/css/filament/admin/theme.css
+# >>> PENTING: Copy vendor dari php-deps agar Vite bisa resolve import Filament
+COPY --from=php-deps /var/www/html/vendor ./vendor
 
-# Debug info
-RUN echo "=== Debug Info ===" && \
-    ls -la resources/ && \
-    echo "=== Resources CSS ===" && \
-    ls -la resources/css/ && \
-    echo "=== Vite Config ===" && \
-    cat vite.config.js
-
-# Build assets dengan error handling
-RUN npm run build || (echo "Build failed, contents:" && ls -la && exit 1)
+# Build assets
+RUN npm run build
 
 # ---------- Production ----------
 FROM php-base AS prod
