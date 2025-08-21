@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # MerubaliStock Production Entrypoint
-# Enhanced for better asset handling and debugging
+# Fixed .env file handling
 
 set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -25,29 +25,109 @@ print_error() {
 
 print_status "🚀 Starting MerubaliStock container initialization..."
 
-# Ensure we're in the right directory
 cd /var/www/html
 
-# 1. Environment validation
-print_status "Validating environment..."
+# ===== STEP 1: CREATE .env FILE =====
+print_status "Setting up environment file..."
+
 if [ ! -f ".env" ]; then
-    print_error ".env file not found!"
-    exit 1
+    if [ -f ".env.example" ]; then
+        print_warning ".env missing, copying from .env.example..."
+        cp .env.example .env
+    else
+        print_error "Neither .env nor .env.example found!"
+        print_status "Creating minimal .env file..."
+
+        cat > .env << 'ENV_EOF'
+APP_NAME=MerubaliStock
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
+APP_TIMEZONE=Asia/Makassar
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_MAINTENANCE_DRIVER=file
+
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_LEVEL=error
+
+DB_CONNECTION=mysql
+DB_HOST=merubali_merubali-app-db
+DB_PORT=3306
+DB_DATABASE=merubaliapp
+DB_USERNAME=mariadb
+DB_PASSWORD=d36505d65ed9d71c2d8b
+
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=.sbfalk.easypanel.host
+SESSION_SECURE_COOKIE=true
+SESSION_HTTP_ONLY=true
+SESSION_SAME_SITE=lax
+
+CACHE_STORE=database
+CACHE_PREFIX=merubali_cache
+
+QUEUE_CONNECTION=database
+
+ASSET_URL=https://merubali-merubali-app.sbfalk.easypanel.host
+
+MAIL_MAILER=smtp
+MAIL_HOST=localhost
+MAIL_PORT=587
+MAIL_FROM_ADDRESS=no-reply@merubali.com
+MAIL_FROM_NAME=MerubaliStock
+
+PHP_CLI_SERVER_WORKERS=4
+BCRYPT_ROUNDS=12
+
+VITE_APP_NAME=MerubaliStock
+VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
+
+TRUSTED_PROXIES=*
+TRUSTED_HOSTS=merubali-merubali-app.sbfalk.easypanel.host
+
+FILESYSTEM_DISK=local
+ENV_EOF
+
+        print_status "Basic .env file created"
+    fi
 fi
 
-# 2. APP_KEY handling (improved from original)
+# ===== STEP 2: OVERRIDE WITH ENVIRONMENT VARIABLES =====
+print_status "Applying environment variable overrides..."
+
+# Override key values from environment variables if they exist
+[ ! -z "$APP_NAME" ] && sed -i "s/APP_NAME=.*/APP_NAME=$APP_NAME/" .env
+[ ! -z "$APP_ENV" ] && sed -i "s/APP_ENV=.*/APP_ENV=$APP_ENV/" .env
+[ ! -z "$APP_DEBUG" ] && sed -i "s/APP_DEBUG=.*/APP_DEBUG=$APP_DEBUG/" .env
+[ ! -z "$APP_URL" ] && sed -i "s|APP_URL=.*|APP_URL=$APP_URL|" .env
+
+[ ! -z "$DB_HOST" ] && sed -i "s/DB_HOST=.*/DB_HOST=$DB_HOST/" .env
+[ ! -z "$DB_DATABASE" ] && sed -i "s/DB_DATABASE=.*/DB_DATABASE=$DB_DATABASE/" .env
+[ ! -z "$DB_USERNAME" ] && sed -i "s/DB_USERNAME=.*/DB_USERNAME=$DB_USERNAME/" .env
+[ ! -z "$DB_PASSWORD" ] && sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/" .env
+
+print_status ".env file ready!"
+
+# ===== STEP 3: APP_KEY HANDLING =====
 print_status "Checking APP_KEY..."
+
 if [ ! -f /var/www/html/storage/app/.app_key_initialized ]; then
-    if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:" ]; then
-        print_warning "APP_KEY missing, generating new one..."
+    APP_KEY_IN_ENV=$(grep "^APP_KEY=" .env | cut -d'=' -f2)
+    if [ -z "$APP_KEY_IN_ENV" ] || [ "$APP_KEY_IN_ENV" = "base64:" ] || [ "$APP_KEY_IN_ENV" = "" ]; then
+        print_warning "APP_KEY missing or empty, generating new one..."
         php artisan key:generate --force
     fi
     mkdir -p /var/www/html/storage/app
     touch /var/www/html/storage/app/.app_key_initialized
-    print_status "APP_KEY initialized"
+    print_status "APP_KEY verified"
 fi
 
-# 3. Wait for database connection (enhanced)
+# ===== STEP 4: DATABASE CONNECTION =====
 if [ "$DB_CONNECTION" = "mysql" ] && [ -n "$DB_HOST" ]; then
     print_status "Waiting for database connection..."
     max_attempts=30
@@ -70,118 +150,107 @@ if [ "$DB_CONNECTION" = "mysql" ] && [ -n "$DB_HOST" ]; then
     done
 fi
 
-# 4. Verify frontend assets (NEW - Critical for your case!)
+# ===== STEP 5: VERIFY FRONTEND ASSETS =====
 print_status "Verifying frontend assets..."
+
 if [ ! -f "public/build/manifest.json" ]; then
     print_error "Frontend build manifest missing!"
-    print_error "This will cause CSS/JS loading issues."
+    print_warning "Creating emergency assets..."
 
-    # Try to create emergency assets
-    print_warning "Creating emergency frontend assets..."
     mkdir -p public/build/assets
+    HASH=$(date +%s | tail -c 6)
 
-    # Create minimal working manifest
-    cat > public/build/manifest.json << 'EOF'
+    # Emergency CSS
+    cat > public/build/assets/app-$HASH.css << 'CSS_EOF'
+/* Emergency CSS - MerubaliStock */
+body{font-family:Inter,sans-serif;background:#f8fafc;color:#1e293b}
+*{box-sizing:border-box}
+.flex{display:flex}.block{display:block}.text-sm{font-size:.875rem}
+.p-4{padding:1rem}.bg-white{background:#fff}.rounded{border-radius:.375rem}
+.shadow{box-shadow:0 1px 3px rgba(0,0,0,.1)}
+@media(prefers-color-scheme:dark){body{background:#0f172a;color:#f1f5f9}}
+CSS_EOF
+
+    # Emergency JS
+    echo "console.log('MerubaliStock Emergency JS loaded');" > public/build/assets/app-$HASH.js
+
+    # Emergency Theme
+    cat > public/build/assets/theme-$HASH.css << 'THEME_EOF'
+/* Emergency Filament Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+.fi-body{font-family:Inter,sans-serif;background:#f8fafc}
+.fi-sidebar{width:16rem;background:white;border-right:1px solid #e5e7eb}
+.fi-main{margin-left:16rem;padding:1.5rem}
+THEME_EOF
+
+    # Emergency Manifest
+    cat > public/build/manifest.json << EOF
 {
   "resources/css/app.css": {
-    "file": "assets/app-emergency.css",
+    "file": "assets/app-$HASH.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-emergency.js",
+    "file": "assets/app-$HASH.js",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/css/filament/admin/theme.css": {
-    "file": "assets/theme-emergency.css",
+    "file": "assets/theme-$HASH.css",
     "src": "resources/css/filament/admin/theme.css",
     "isEntry": true
   }
 }
 EOF
 
-    # Create minimal CSS
-    echo "/* Emergency CSS - Please rebuild assets */" > public/build/assets/app-emergency.css
-    echo "body { font-family: Inter, sans-serif; background: #f8fafc; }" >> public/build/assets/app-emergency.css
-    echo ".dark body { background: #1e293b; color: #f1f5f9; }" >> public/build/assets/app-emergency.css
-
-    # Create minimal JS
-    echo "// Emergency JS - Please rebuild assets" > public/build/assets/app-emergency.js
-    echo "console.log('Emergency assets loaded - please rebuild frontend');" >> public/build/assets/app-emergency.js
-
-    # Create minimal theme CSS
-    echo "/* Emergency Filament Theme */" > public/build/assets/theme-emergency.css
-    echo "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');" >> public/build/assets/theme-emergency.css
-    echo ".fi-body { font-family: 'Inter', sans-serif; }" >> public/build/assets/theme-emergency.css
-
-    print_warning "Emergency assets created. Please rebuild frontend ASAP!"
+    print_warning "Emergency assets created! Rebuild container to fix properly."
 else
     print_status "Frontend assets verified ✅"
-    echo "Manifest preview:"
-    head -10 public/build/manifest.json
 fi
 
-# 5. Directory permissions
+# ===== STEP 6: DIRECTORIES & PERMISSIONS =====
 print_status "Setting up directories and permissions..."
-mkdir -p storage/app/public
-mkdir -p storage/framework/cache/data
-mkdir -p storage/framework/sessions
-mkdir -p storage/framework/testing
-mkdir -p storage/framework/views
-mkdir -p storage/logs
-mkdir -p bootstrap/cache
 
-# Set permissions
+mkdir -p storage/app/public storage/framework/cache/data \
+    storage/framework/sessions storage/framework/testing \
+    storage/framework/views storage/logs bootstrap/cache
+
 chown -R www-data:www-data storage bootstrap/cache public
 find storage -type d -exec chmod 775 {} \;
 find storage -type f -exec chmod 664 {} \;
 chmod -R 775 bootstrap/cache
 chmod -R 755 public
 
-# 6. Storage link (idempotent)
-print_status "Creating storage link..."
+# ===== STEP 7: LARAVEL SETUP =====
+print_status "Setting up Laravel..."
+
+# Storage link
 php artisan storage:link || print_warning "Storage link might already exist"
 
-# 7. Database migrations
-print_status "Running database migrations..."
-if [ "$RUN_MIGRATIONS" = "true" ]; then
-    php artisan migrate --force
-else
-    php artisan migrate --force --no-interaction
-fi
+# Migrations
+php artisan migrate --force --no-interaction
 
-# 8. Asset publishing (enhanced)
-print_status "Publishing vendor assets..."
-php artisan vendor:publish --tag=livewire:assets --force || print_warning "Livewire assets issue"
-php artisan vendor:publish --tag=filament-assets --force || print_warning "Filament assets issue"
+# Asset publishing
+php artisan vendor:publish --tag=livewire:assets --force || print_warning "Livewire assets"
+php artisan vendor:publish --tag=filament-assets --force || print_warning "Filament assets"
 
-# Ensure Filament assets exist
-if [ ! -d "public/vendor/filament" ]; then
-    print_warning "Filament vendor assets missing, attempting to publish all..."
-    php artisan vendor:publish --all --force
-fi
-
-# 9. Cache optimization
-print_status "Optimizing Laravel caches..."
+# Cache optimization
 php artisan config:cache || print_warning "Config cache failed"
 php artisan route:cache || print_warning "Route cache failed"
 php artisan view:cache || print_warning "View cache failed"
-php artisan event:cache || print_warning "Event cache failed"
-
-# 10. Final optimization
-print_status "Final application optimization..."
 php artisan optimize
 
-# 11. Health check
-print_status "Performing health check..."
+# ===== STEP 8: FINAL CHECKS =====
+print_status "Final health check..."
+
 if php artisan tinker --execute="echo 'Laravel OK';" >/dev/null 2>&1; then
     print_status "Application health check passed ✅"
 else
-    print_warning "Application health check failed - check logs"
+    print_warning "Application health check failed"
 fi
 
-# 12. Start queue worker if configured
+# Start queue worker if needed
 if [ "$QUEUE_CONNECTION" != "sync" ] && [ "${START_QUEUE_WORKER:-false}" = "true" ]; then
     print_status "Starting queue worker..."
     php artisan queue:work --daemon --sleep=3 --tries=3 &
@@ -191,15 +260,12 @@ print_status "🎉 Container initialization complete!"
 print_status "Application: $APP_URL"
 print_status "Admin Panel: $APP_URL/admin"
 
-# Final asset verification
 if [ -f "public/build/manifest.json" ]; then
     ASSET_COUNT=$(find public/build -type f | wc -l)
     print_status "Frontend assets: $ASSET_COUNT files ready"
 else
-    print_error "Frontend assets still missing - CSS/JS may not load!"
+    print_error "Frontend assets still missing!"
 fi
 
-print_status "Starting services with supervisord..."
-
-# Execute the main command
+print_status "Starting services..."
 exec "$@"
