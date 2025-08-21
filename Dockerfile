@@ -17,27 +17,31 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# ---------- Dependencies ----------
-FROM php-base AS deps
+# ---------- PHP Dependencies ----------
+FROM php-base AS php-deps
 COPY composer.json composer.lock ./
-# (opsional) biar Composer aman memory-nya
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
 # ---------- Frontend build ----------
-FROM node:20 AS frontend
+FROM node:22-alpine AS frontend-build
 WORKDIR /app
-COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
-RUN npm ci || npm i
-COPY . .
 
-# >>> TAMBAH: bawa vendor dari stage deps agar Vite bisa resolve import Filament
-COPY --from=deps /var/www/html/vendor ./vendor
+# Copy package files
+COPY package.json package-lock.json* ./
 
+# Install dependencies
+RUN npm ci
+
+# Copy source files yang dibutuhkan untuk build
+COPY resources/ ./resources/
+COPY vite.config.js tailwind.config.js ./
+
+# Build assets
 RUN npm run build
 
-# ---------- Production image ----------
+# ---------- Production ----------
 FROM php-base AS prod
 
 # Nginx config
@@ -55,11 +59,11 @@ WORKDIR /var/www/html
 # Copy app source
 COPY . .
 
-# Copy vendor from deps stage
-COPY --from=deps /var/www/html/vendor ./vendor
+# Copy vendor dari php-deps stage
+COPY --from=php-deps /var/www/html/vendor ./vendor
 
-# Copy built assets (Vite) dari stage frontend
-COPY --from=frontend /app/public/build ./public/build
+# Copy built assets dari frontend-build stage
+COPY --from=frontend-build /app/public/build ./public/build
 
 # Laravel permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
