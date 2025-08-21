@@ -24,22 +24,40 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
+# ✅ PERBAIKAN: Publish vendor assets di deps stage
+RUN mkdir -p public/livewire public/vendor
+COPY . .
+RUN php artisan vendor:publish --all --force || echo "Some assets may not be published"
+
 # ---------- Frontend build ----------
 FROM node:20 AS frontend
 WORKDIR /app
+
+# Environment variables untuk Vite build
+ENV NODE_ENV=production
+ENV VITE_APP_NAME=MerubaliStock
+ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
 # Copy package files dan install dependencies
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
 RUN npm ci || npm i
 
-# ✅ PERBAIKAN: Copy vendor DULU sebelum copy source code
+# Copy vendor dari deps stage (sudah include published assets)
 COPY --from=deps /var/www/html/vendor ./vendor
 
-# Copy semua source code (ini akan mengikuti .dockerignore)
+# Copy source code
 COPY . .
 
-# Build assets dengan Vite
+# Copy pre-published assets dari deps stage
+COPY --from=deps /var/www/html/public ./public
+
+# Build dengan Vite
 RUN npm run build
+
+# Verify build output
+RUN echo "=== Build verification ===" && \
+    ls -la public/build/ && \
+    ls -la public/livewire/ || echo "Livewire assets not found"
 
 # ---------- Production image ----------
 FROM php-base AS prod
@@ -62,14 +80,19 @@ COPY . .
 # Copy vendor from deps stage
 COPY --from=deps /var/www/html/vendor ./vendor
 
-# Copy built assets (Vite) dari stage frontend
-COPY --from=frontend /app/public/build ./public/build
+# ✅ PERBAIKAN: Copy semua public assets (Vite build + vendor assets)
+COPY --from=frontend /app/public ./public
+
+# ✅ TAMBAHAN: Publish assets sekali lagi di production (safety net)
+RUN php artisan vendor:publish --tag=livewire:assets --force || echo "Livewire assets already published" && \
+    php artisan vendor:publish --tag=filament-assets --force || echo "Filament assets already published"
 
 # Laravel permissions
-RUN chown -R www-data:www-data storage bootstrap/cache \
+RUN chown -R www-data:www-data storage bootstrap/cache public \
  && find storage -type d -exec chmod 775 {} \; \
  && find storage -type f -exec chmod 664 {} \; \
- && chmod -R 775 bootstrap/cache
+ && chmod -R 775 bootstrap/cache \
+ && chmod -R 755 public
 
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost/health || exit 1
