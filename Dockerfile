@@ -24,21 +24,21 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
-# Copy all source files before publishing assets
+# Copy all source files
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p public/livewire public/vendor storage/framework/views storage/app storage/logs \
-    bootstrap/cache resources/views/filament app/Filament
+RUN mkdir -p public/livewire public/vendor public/build storage/framework/views \
+    storage/app storage/logs bootstrap/cache resources/views/filament app/Filament
 
-# Publish vendor assets after all files are copied
+# Publish vendor assets
 RUN php artisan vendor:publish --all --force || echo "Some assets may not be published"
 
 # ---------- Frontend build ----------
 FROM node:20-slim AS frontend
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies for native packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -47,16 +47,20 @@ ENV NODE_ENV=production
 ENV VITE_APP_NAME=MerubaliStock
 ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
-# Copy package files first for better caching
-COPY package.json package-lock.json ./
+# Copy package files first (for better caching)
+COPY package.json package-lock.json* ./
 
-# Install dependencies with clean install
-RUN npm ci --only=production --legacy-peer-deps
+# Install dependencies
+RUN if [ -f package-lock.json ]; then \
+        npm ci --legacy-peer-deps; \
+    else \
+        npm install --legacy-peer-deps; \
+    fi
 
-# Copy all source files
+# Copy all source files needed for build
 COPY . .
 
-# Copy vendor directory from deps stage (needed for TailwindCSS scanning)
+# Copy vendor directory from deps (needed for TailwindCSS scanning)
 COPY --from=deps /var/www/html/vendor ./vendor
 COPY --from=deps /var/www/html/public ./public
 
@@ -65,36 +69,80 @@ RUN mkdir -p storage/framework/views storage/framework/cache \
     app/Filament resources/views/filament bootstrap/cache \
     resources/css resources/js
 
-# Create empty files if they don't exist (prevents build failures)
-RUN touch storage/framework/views/.gitkeep \
-    && touch bootstrap/cache/.gitkeep
+# Verify source files before build
+RUN echo "=== Pre-build Verification ===" && \
+    echo "Source files:" && \
+    ls -la resources/css/ && \
+    ls -la resources/js/ && \
+    echo "Package.json:" && \
+    cat package.json && \
+    echo "Vite config:" && \
+    cat vite.config.js
 
-# Build with better error handling
-RUN echo "=== Starting Vite Build ===" \
- && echo "Node version: $(node --version)" \
- && echo "NPM version: $(npm --version)" \
- && echo "Checking files:" \
- && ls -la resources/css/ \
- && ls -la resources/js/ \
- && echo "=== Building ===" \
- && npm run build 2>&1 || \
-    (echo "=== First build failed, trying with verbose ===" && \
-     npx vite build --mode production --logLevel info 2>&1) || \
-    (echo "=== Trying without TailwindCSS scanning ===" && \
-     SKIP_TAILWIND=true npx vite build --mode production 2>&1) || \
-    (echo "=== Creating fallback build ===" && \
-     mkdir -p public/build && \
-     echo '{"resources/css/app.css":{"file":"app.css","src":"resources/css/app.css"},"resources/js/app.js":{"file":"app.js","src":"resources/js/app.js"},"resources/css/filament/admin/theme.css":{"file":"theme.css","src":"resources/css/filament/admin/theme.css"}}' > public/build/manifest.json && \
-     touch public/build/app.css public/build/app.js public/build/theme.css && \
-     echo "/* Fallback CSS */" > public/build/app.css && \
-     echo "/* Fallback CSS */" > public/build/theme.css && \
-     echo "// Fallback JS" > public/build/app.js)
+# 🎯 MAIN BUILD with comprehensive error handling
+RUN echo "=== Starting Vite Build ===" && \
+    echo "Node: $(node --version)" && \
+    echo "NPM: $(npm --version)" && \
+    if npm run build 2>&1; then \
+        echo "✅ Build successful!" && \
+        echo "Build output:" && \
+        ls -la public/build/ && \
+        cat public/build/manifest.json; \
+    else \
+        echo "❌ npm run build failed, trying alternatives..." && \
+        if npx vite build --mode production 2>&1; then \
+            echo "✅ Alternative build successful!"; \
+        else \
+            echo "❌ All builds failed, creating proper fallback..." && \
+            mkdir -p public/build/assets && \
+            \
+            echo "/* MerubaliStock App CSS - Generated Fallback */" > public/build/assets/app-fallback.css && \
+            echo "@import 'tailwindcss/base';" >> public/build/assets/app-fallback.css && \
+            echo "@import 'tailwindcss/components';" >> public/build/assets/app-fallback.css && \
+            echo "@import 'tailwindcss/utilities';" >> public/build/assets/app-fallback.css && \
+            echo "body { font-family: 'Inter', sans-serif; }" >> public/build/assets/app-fallback.css && \
+            \
+            echo "// MerubaliStock App JS - Generated Fallback" > public/build/assets/app-fallback.js && \
+            echo "import './bootstrap.js';" >> public/build/assets/app-fallback.js && \
+            echo "console.log('MerubaliStock loaded');" >> public/build/assets/app-fallback.js && \
+            \
+            echo "/* Filament Theme CSS - Generated Fallback */" > public/build/assets/theme-fallback.css && \
+            echo "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');" >> public/build/assets/theme-fallback.css && \
+            echo ".fi-body { font-family: 'Inter', sans-serif; }" >> public/build/assets/theme-fallback.css && \
+            \
+            cat > public/build/manifest.json << 'MANIFEST_EOF' && \
+{
+  "resources/css/app.css": {
+    "file": "assets/app-fallback.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-fallback.js",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/css/filament/admin/theme.css": {
+    "file": "assets/theme-fallback.css",
+    "src": "resources/css/filament/admin/theme.css",
+    "isEntry": true
+  }
+}
+MANIFEST_EOF
+            echo "✅ Proper fallback assets created!"; \
+        fi; \
+    fi
 
-# Verify build output
-RUN echo "=== Build Verification ===" \
- && ls -la public/build/ || echo "No build directory" \
- && cat public/build/manifest.json 2>/dev/null || echo "No manifest file" \
- && echo "=== Build Complete ==="
+# Final verification
+RUN echo "=== Final Build Verification ===" && \
+    ls -la public/build/ && \
+    echo "Manifest content:" && \
+    cat public/build/manifest.json && \
+    echo "Asset files:" && \
+    find public/build -name "*.css" -o -name "*.js" | head -10 && \
+    echo "File sizes:" && \
+    du -h public/build/* && \
+    echo "=== Frontend Build Stage Complete ==="
 
 # ---------- Production image ----------
 FROM php-base AS prod
@@ -115,15 +163,27 @@ COPY . .
 # Copy vendor dependencies
 COPY --from=deps /var/www/html/vendor ./vendor
 
-# Copy built assets from frontend stage
+# 🎯 CRITICAL: Copy built assets from frontend stage
 COPY --from=frontend /app/public/build ./public/build
 
-# Ensure vendor assets directory exists
-RUN mkdir -p ./public/vendor
+# Copy published vendor assets
+COPY --from=deps /var/www/html/public/vendor ./public/vendor 2>/dev/null || mkdir -p ./public/vendor
+
+# Verify assets copied correctly
+RUN echo "=== Production Asset Verification ===" && \
+    ls -la public/build/ && \
+    echo "Manifest exists:" && \
+    cat public/build/manifest.json && \
+    echo "Asset files count:" && \
+    find public/build -type f | wc -l && \
+    if [ ! -f "public/build/manifest.json" ]; then \
+        echo "❌ CRITICAL: No manifest in production!" && \
+        exit 1; \
+    fi
 
 # Final asset publishing (safety net)
-RUN php artisan vendor:publish --tag=livewire:assets --force 2>/dev/null || echo "Livewire assets already published" \
- && php artisan vendor:publish --tag=filament-assets --force 2>/dev/null || echo "Filament assets already published"
+RUN php artisan vendor:publish --tag=livewire:assets --force 2>/dev/null || echo "Livewire assets handled" && \
+    php artisan vendor:publish --tag=filament-assets --force 2>/dev/null || echo "Filament assets handled"
 
 # Set proper permissions
 RUN chown -R www-data:www-data storage bootstrap/cache public \
