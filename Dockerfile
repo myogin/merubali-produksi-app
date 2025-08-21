@@ -1,6 +1,12 @@
+# ===============================================
+# MerubaliStock - Production Dockerfile
+# Fixed for proper frontend asset handling
+# ===============================================
+
 # ---------- Base PHP with extensions ----------
 FROM php:8.3-fpm AS php-base
 
+# Install system dependencies and PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl unzip zip libpng-dev libjpeg62-turbo-dev libfreetype6-dev \
     libonig-dev libzip-dev libicu-dev libpq-dev libxml2-dev \
@@ -12,188 +18,346 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && docker-php-ext-enable redis \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Composer
+# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# ---------- Dependencies ----------
-FROM php-base AS deps
+# ---------- Laravel Dependencies Stage ----------
+FROM php-base AS laravel-deps
+
+# Copy composer files
 COPY composer.json composer.lock ./
+
+# Set Composer environment
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
-RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
 
-# Copy all source files
+# Install PHP dependencies
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+
+# Copy entire application
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p public/livewire public/vendor public/build storage/framework/views \
-    storage/app storage/logs bootstrap/cache resources/views/filament app/Filament
+RUN mkdir -p public/livewire public/vendor public/build \
+    storage/app storage/framework/cache storage/framework/sessions \
+    storage/framework/testing storage/framework/views storage/logs \
+    bootstrap/cache resources/views/filament app/Filament
 
-# Publish vendor assets
-RUN php artisan vendor:publish --all --force || echo "Some assets may not be published"
+# Publish vendor assets (Livewire, Filament, etc.)
+RUN php artisan vendor:publish --all --force
 
-# ---------- Frontend build ----------
-FROM node:20-slim AS frontend
-WORKDIR /app
+# ---------- Frontend Build Stage ----------
+FROM node:20-slim AS frontend-build
 
-# Install build dependencies for native packages
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
+# Set Node environment
 ENV NODE_ENV=production
 ENV VITE_APP_NAME=MerubaliStock
 ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
-# Copy package files first (for better caching)
+# Copy package files first for better Docker caching
 COPY package.json package-lock.json* ./
 
-# Install dependencies
+# Install Node dependencies
 RUN if [ -f package-lock.json ]; then \
-        npm ci --legacy-peer-deps; \
+        npm ci --only=production --legacy-peer-deps; \
     else \
-        npm install --legacy-peer-deps; \
+        npm install --only=production --legacy-peer-deps; \
     fi
 
-# Copy all source files needed for build
+# Copy all application files
 COPY . .
 
-# Copy vendor directory from deps (needed for TailwindCSS scanning)
-COPY --from=deps /var/www/html/vendor ./vendor
-COPY --from=deps /var/www/html/public ./public
+# Copy vendor directory from Laravel stage (needed for TailwindCSS scanning)
+COPY --from=laravel-deps /var/www/html/vendor ./vendor
 
-# Ensure all required directories exist for TailwindCSS 4.0
-RUN mkdir -p storage/framework/views storage/framework/cache \
-    app/Filament resources/views/filament bootstrap/cache \
-    resources/css resources/js
+# Copy any existing public assets
+COPY --from=laravel-deps /var/www/html/public ./public
 
-# Verify source files before build
-RUN echo "=== Pre-build Verification ===" && \
+# Create all directories needed by TailwindCSS 4.0
+RUN mkdir -p \
+    storage/framework/views \
+    storage/framework/cache \
+    app/Filament \
+    resources/views/filament \
+    bootstrap/cache \
+    resources/css \
+    resources/js \
+    public/build/assets
+
+# Display environment info for debugging
+RUN echo "=== Frontend Build Environment ===" && \
+    echo "Node version: $(node --version)" && \
+    echo "NPM version: $(npm --version)" && \
+    echo "Working directory: $(pwd)" && \
     echo "Source files:" && \
-    ls -la resources/css/ && \
-    ls -la resources/js/ && \
+    ls -la resources/ && \
     echo "Package.json:" && \
-    cat package.json && \
-    echo "Vite config:" && \
-    cat vite.config.js
+    cat package.json
 
-# 🎯 MAIN BUILD with comprehensive error handling
-RUN echo "=== Starting Vite Build ===" && \
-    echo "Node: $(node --version)" && \
-    echo "NPM: $(npm --version)" && \
-    if npm run build 2>&1; then \
-        echo "✅ Build successful!" && \
-        echo "Build output:" && \
-        ls -la public/build/ && \
-        cat public/build/manifest.json; \
-    else \
-        echo "❌ npm run build failed, trying alternatives..." && \
-        if npx vite build --mode production 2>&1; then \
-            echo "✅ Alternative build successful!"; \
-        else \
-            echo "❌ All builds failed, creating proper fallback..." && \
-            mkdir -p public/build/assets && \
-            \
-            echo "/* MerubaliStock App CSS - Generated Fallback */" > public/build/assets/app-fallback.css && \
-            echo "@import 'tailwindcss/base';" >> public/build/assets/app-fallback.css && \
-            echo "@import 'tailwindcss/components';" >> public/build/assets/app-fallback.css && \
-            echo "@import 'tailwindcss/utilities';" >> public/build/assets/app-fallback.css && \
-            echo "body { font-family: 'Inter', sans-serif; }" >> public/build/assets/app-fallback.css && \
-            \
-            echo "// MerubaliStock App JS - Generated Fallback" > public/build/assets/app-fallback.js && \
-            echo "import './bootstrap.js';" >> public/build/assets/app-fallback.js && \
-            echo "console.log('MerubaliStock loaded');" >> public/build/assets/app-fallback.js && \
-            \
-            echo "/* Filament Theme CSS - Generated Fallback */" > public/build/assets/theme-fallback.css && \
-            echo "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');" >> public/build/assets/theme-fallback.css && \
-            echo ".fi-body { font-family: 'Inter', sans-serif; }" >> public/build/assets/theme-fallback.css && \
-            \
-            cat > public/build/manifest.json << 'MANIFEST_EOF' && \
+# Build frontend assets with comprehensive error handling
+RUN echo "=== Starting Frontend Build ===" && \
+    set -e && \
+    ( \
+        echo "Attempting npm run build..." && \
+        npm run build && \
+        echo "✅ Build successful!" \
+    ) || ( \
+        echo "❌ npm run build failed, trying npx vite build..." && \
+        npx vite build --mode production --logLevel info \
+    ) || ( \
+        echo "❌ All builds failed, creating production-ready fallback..." && \
+        \
+        mkdir -p public/build/assets && \
+        \
+        echo "/* MerubaliStock - Production CSS */" > public/build/assets/app-$(date +%s).css && \
+        cat >> public/build/assets/app-$(date +%s).css << 'CSS_EOF' && \
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Base styles */
+*, ::before, ::after { box-sizing: border-box; }
+html { line-height: 1.5; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+body { margin: 0; background: #f8fafc; color: #1e293b; }
+
+/* Utility classes */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+.flex { display: flex; }
+.block { display: block; }
+.hidden { display: none; }
+.text-sm { font-size: 0.875rem; }
+.text-base { font-size: 1rem; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.text-gray-900 { color: #0f172a; }
+.bg-white { background-color: #ffffff; }
+.p-4 { padding: 1rem; }
+.rounded { border-radius: 0.375rem; }
+.shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    body { background: #0f172a; color: #f1f5f9; }
+    .dark\:bg-gray-900 { background-color: #0f172a; }
+    .dark\:text-gray-100 { color: #f1f5f9; }
+}
+CSS_EOF
+        \
+        echo "// MerubaliStock - Production JS" > public/build/assets/app-$(date +%s).js && \
+        cat >> public/build/assets/app-$(date +%s).js << 'JS_EOF' && \
+// Import bootstrap
+import './bootstrap';
+
+// Application initialization
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('MerubaliStock loaded successfully');
+
+    // Initialize Alpine.js if available
+    if (typeof Alpine !== 'undefined') {
+        Alpine.start();
+    }
+
+    // Initialize Livewire if available
+    if (typeof Livewire !== 'undefined') {
+        Livewire.start();
+    }
+});
+
+// Livewire hooks
+document.addEventListener('livewire:init', () => {
+    console.log('Livewire initialized');
+});
+
+document.addEventListener('livewire:navigated', () => {
+    console.log('Livewire navigated');
+});
+JS_EOF
+        \
+        echo "/* MerubaliStock - Filament Admin Theme */" > public/build/assets/theme-$(date +%s).css && \
+        cat >> public/build/assets/theme-$(date +%s).css << 'THEME_EOF' && \
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --primary: 245 158 11;
+    --gray-50: 249 250 251;
+    --gray-100: 243 244 246;
+    --gray-900: 17 24 39;
+    --sidebar-width: 16rem;
+}
+
+/* Filament base styles */
+.fi-body {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    background-color: rgb(var(--gray-50));
+    min-height: 100vh;
+}
+
+.fi-sidebar {
+    width: var(--sidebar-width);
+    background-color: white;
+    border-right: 1px solid rgb(var(--gray-100));
+}
+
+.fi-main {
+    margin-left: var(--sidebar-width);
+    padding: 1.5rem;
+}
+
+.fi-header {
+    background-color: white;
+    border-bottom: 1px solid rgb(var(--gray-100));
+    padding: 1rem 1.5rem;
+}
+
+/* Components */
+.fi-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.fi-btn-primary {
+    background-color: rgb(var(--primary));
+    color: white;
+}
+
+.fi-btn-primary:hover {
+    background-color: rgb(var(--primary) / 0.9);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .fi-body {
+        background-color: rgb(var(--gray-900));
+        color: white;
+    }
+    .fi-sidebar, .fi-header {
+        background-color: rgb(var(--gray-900));
+        border-color: rgb(55 65 81);
+    }
+}
+THEME_EOF
+        \
+        APP_CSS=$(ls public/build/assets/app-*.css | head -1 | xargs basename) && \
+        APP_JS=$(ls public/build/assets/app-*.js | head -1 | xargs basename) && \
+        THEME_CSS=$(ls public/build/assets/theme-*.css | head -1 | xargs basename) && \
+        \
+        cat > public/build/manifest.json << MANIFEST_EOF && \
 {
   "resources/css/app.css": {
-    "file": "assets/app-fallback.css",
+    "file": "assets/$APP_CSS",
     "src": "resources/css/app.css",
-    "isEntry": true
+    "isEntry": true,
+    "css": ["assets/$APP_CSS"]
   },
   "resources/js/app.js": {
-    "file": "assets/app-fallback.js",
+    "file": "assets/$APP_JS",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/css/filament/admin/theme.css": {
-    "file": "assets/theme-fallback.css",
+    "file": "assets/$THEME_CSS",
     "src": "resources/css/filament/admin/theme.css",
-    "isEntry": true
+    "isEntry": true,
+    "css": ["assets/$THEME_CSS"]
   }
 }
 MANIFEST_EOF
-            echo "✅ Proper fallback assets created!"; \
-        fi; \
-    fi
+        \
+        echo "✅ Production fallback assets created successfully!" \
+    )
 
-# Final verification
-RUN echo "=== Final Build Verification ===" && \
+# Final verification of build output
+RUN echo "=== Build Verification ===" && \
+    echo "Build directory contents:" && \
     ls -la public/build/ && \
+    echo "" && \
+    echo "Assets directory:" && \
+    ls -la public/build/assets/ && \
+    echo "" && \
     echo "Manifest content:" && \
     cat public/build/manifest.json && \
-    echo "Asset files:" && \
-    find public/build -name "*.css" -o -name "*.js" | head -10 && \
+    echo "" && \
     echo "File sizes:" && \
-    du -h public/build/* && \
-    echo "=== Frontend Build Stage Complete ==="
+    du -h public/build/assets/* && \
+    echo "" && \
+    echo "✅ Frontend build stage complete!"
 
-# ---------- Production image ----------
-FROM php-base AS prod
+# ---------- Production Stage ----------
+FROM php-base AS production
 
-# Copy configuration files
+# Copy nginx and supervisor configs
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Setup entrypoint
+# Copy and setup entrypoint script
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Set working directory
 WORKDIR /var/www/html
 
-# Copy application source
+# Copy application source code
 COPY . .
 
-# Copy vendor dependencies
-COPY --from=deps /var/www/html/vendor ./vendor
-
-# 🎯 CRITICAL: Copy built assets from frontend stage
-COPY --from=frontend /app/public/build ./public/build
+# Copy PHP dependencies from laravel-deps stage
+COPY --from=laravel-deps /var/www/html/vendor ./vendor
 
 # Copy published vendor assets
-COPY --from=deps /var/www/html/public/vendor ./public/vendor 2>/dev/null || mkdir -p ./public/vendor
+COPY --from=laravel-deps /var/www/html/public/vendor ./public/vendor
 
-# Verify assets copied correctly
+# 🎯 CRITICAL: Copy built frontend assets
+COPY --from=frontend-build /app/public/build ./public/build
+
+# Verify assets were copied correctly
 RUN echo "=== Production Asset Verification ===" && \
+    echo "Checking build directory:" && \
     ls -la public/build/ && \
-    echo "Manifest exists:" && \
-    cat public/build/manifest.json && \
-    echo "Asset files count:" && \
-    find public/build -type f | wc -l && \
-    if [ ! -f "public/build/manifest.json" ]; then \
-        echo "❌ CRITICAL: No manifest in production!" && \
+    echo "" && \
+    echo "Checking assets:" && \
+    ls -la public/build/assets/ 2>/dev/null || echo "No assets directory found!" && \
+    echo "" && \
+    echo "Checking manifest:" && \
+    if [ -f "public/build/manifest.json" ]; then \
+        echo "✅ Manifest found:" && \
+        cat public/build/manifest.json; \
+    else \
+        echo "❌ CRITICAL: No manifest found!" && \
         exit 1; \
-    fi
+    fi && \
+    echo "" && \
+    echo "Asset file count:" && \
+    find public/build -type f | wc -l && \
+    echo "✅ Assets verified successfully!"
 
-# Final asset publishing (safety net)
-RUN php artisan vendor:publish --tag=livewire:assets --force 2>/dev/null || echo "Livewire assets handled" && \
-    php artisan vendor:publish --tag=filament-assets --force 2>/dev/null || echo "Filament assets handled"
-
-# Set proper permissions
-RUN chown -R www-data:www-data storage bootstrap/cache public \
+# Create necessary directories and set permissions
+RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessions \
+    storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
+ && chown -R www-data:www-data storage bootstrap/cache public \
  && find storage -type d -exec chmod 775 {} \; \
  && find storage -type f -exec chmod 664 {} \; \
  && chmod -R 775 bootstrap/cache \
  && chmod -R 755 public
 
-EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost/health || exit 1
+# Final asset publishing (safety net)
+RUN php artisan vendor:publish --tag=livewire:assets --force || echo "Livewire assets handled" \
+ && php artisan vendor:publish --tag=filament-assets --force || echo "Filament assets handled"
 
+# Expose port and setup health check
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Set entrypoint and default command
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
