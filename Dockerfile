@@ -40,7 +40,10 @@ ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
 # Copy package files dan install dependencies
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
-RUN npm ci || npm i
+
+# ✅ SIMPLIFIED: Use npm install instead of npm ci
+RUN npm install && \
+    npm list vite
 
 # Copy vendor dari deps stage (sudah include published assets)
 COPY --from=deps /var/www/html/vendor ./vendor
@@ -51,7 +54,7 @@ COPY . .
 # Copy pre-published assets dari deps stage
 COPY --from=deps /var/www/html/public ./public
 
-# Build dengan Vite
+# Build assets
 RUN npm run build
 
 # Verify build output
