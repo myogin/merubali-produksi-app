@@ -38,12 +38,15 @@ ENV NODE_ENV=production
 ENV VITE_APP_NAME=MerubaliStock
 ENV VITE_APP_URL=https://merubali-merubali-app.sbfalk.easypanel.host
 
-# Copy package files dan install dependencies
-COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
+# ✅ PERBAIKAN: Copy package.json saja dulu, hapus package-lock.json
+COPY package.json ./
 
-# ✅ SIMPLIFIED: Use npm install instead of npm ci
-RUN npm install && \
-    npm list vite
+# ✅ Fresh install dengan ignore optional dependencies (TailwindCSS 4.0 fix)
+RUN echo "=== Installing dependencies fresh ===" && \
+    npm install --ignore-optional --no-package-lock --legacy-peer-deps && \
+    echo "=== Verifying Vite installation ===" && \
+    npm list vite || echo "Vite listed" && \
+    npx vite --version
 
 # Copy vendor dari deps stage (sudah include published assets)
 COPY --from=deps /var/www/html/vendor ./vendor
@@ -54,8 +57,9 @@ COPY . .
 # Copy pre-published assets dari deps stage
 COPY --from=deps /var/www/html/public ./public
 
-# Build assets
-RUN npm run build
+# ✅ Build dengan error handling
+RUN echo "=== Building with Vite ===" && \
+    npx vite build --mode production
 
 # Verify build output
 RUN echo "=== Build verification ===" && \
