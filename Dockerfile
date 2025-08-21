@@ -20,7 +20,6 @@ WORKDIR /var/www/html
 # ---------- Dependencies ----------
 FROM php-base AS deps
 COPY composer.json composer.lock ./
-# (opsional) biar Composer aman memory-nya
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
@@ -28,13 +27,18 @@ RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-p
 # ---------- Frontend build ----------
 FROM node:20 AS frontend
 WORKDIR /app
+
+# Copy package files dan install dependencies
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
 RUN npm ci || npm i
-COPY . .
 
-# >>> TAMBAH: bawa vendor dari stage deps agar Vite bisa resolve import Filament
+# ✅ PERBAIKAN: Copy vendor DULU sebelum copy source code
 COPY --from=deps /var/www/html/vendor ./vendor
 
+# Copy semua source code (ini akan mengikuti .dockerignore)
+COPY . .
+
+# Build assets dengan Vite
 RUN npm run build
 
 # ---------- Production image ----------
