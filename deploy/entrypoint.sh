@@ -13,6 +13,14 @@ fi
 # Storage link (idempotent)
 php artisan storage:link || true
 
+# Package discovery untuk Livewire
+php artisan package:discover --ansi
+
+# Clear cache sebelum cache baru
+php artisan config:clear || true
+php artisan route:clear || true
+php artisan view:clear || true
+
 # Cache config/routes/views
 php artisan config:cache || true
 php artisan route:cache || true

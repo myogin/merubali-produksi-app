@@ -22,7 +22,7 @@ FROM php-base AS php-deps
 COPY composer.json composer.lock ./
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
-RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts --no-progress
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
 # ---------- Frontend build ----------
 FROM node:22-alpine AS frontend-build
@@ -68,6 +68,10 @@ COPY --from=php-deps /var/www/html/vendor ./vendor
 
 # Copy built assets dari frontend-build stage
 COPY --from=frontend-build /app/public/build ./public/build
+
+# Setup Laravel (cukup package discovery)
+RUN composer dump-autoload --optimize && \
+    php artisan package:discover --ansi
 
 # Laravel permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
