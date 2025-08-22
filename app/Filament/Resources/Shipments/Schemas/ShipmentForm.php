@@ -80,7 +80,7 @@ class ShipmentForm
                             ->label('Items to Ship')
                             ->relationship()
                             ->schema([
-                                Grid::make(4)
+                                Grid::make(2)
                                     ->schema([
                                         Select::make('production_batch_item_id')
                                             ->label('Production Batch')
@@ -154,116 +154,61 @@ class ShipmentForm
                                             ->minValue(1)
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 50')
-                                            ->helperText('Quantity to ship (cartons)')
-                                            ->afterStateUpdated(function ($set, $get, $state) {
-                                                // Validate quantity against available stock
-                                                if ($state && $get('production_batch_item_id')) {
-                                                    try {
-                                                        $batchItem = ProductionBatchItem::find($get('production_batch_item_id'));
-                                                        if ($batchItem) {
-                                                            $remainingStock = $batchItem->getRemainingStock();
-                                                            if ($state > $remainingStock) {
-                                                                Notification::make()
-                                                                    ->title('Insufficient Stock')
-                                                                    ->body("Only {$remainingStock} cartons available for this batch.")
-                                                                    ->warning()
-                                                                    ->send();
-                                                            }
-                                                        }
-                                                    } catch (\Exception $e) {
-                                                        // Handle any database errors gracefully
-                                                        Notification::make()
-                                                            ->title('Validation Error')
-                                                            ->body('Unable to validate stock quantity.')
-                                                            ->danger()
-                                                            ->send();
-                                                    }
-                                                }
-                                            })
-                                            ->rules([
-                                                function () {
-                                                    return function (string $attribute, $value, Closure $fail) {
-                                                        // Extract the batch ID from the form state
-                                                        $segments = explode('.', $attribute);
-                                                        $itemIndex = $segments[1] ?? null;
+                                            ->helperText('Quantity to ship (cartons)'),
+                                    ]),
 
-                                                        if ($itemIndex !== null) {
-                                                            $formData = request()->input('data', []);
-                                                            $batchItemId = $formData['shipmentItems'][$itemIndex]['production_batch_item_id'] ?? null;
+                                TextEntry::make('batch_info')
+                                    ->label('Batch Information')
+                                    ->html() // allow rendering HTML
+                                    ->getStateUsing(function ($get): HtmlString {
+                                        $batchItemId = $get('production_batch_item_id');
+                                        $qtyToShip = $get('qty_shipped');
 
-                                                            if ($batchItemId && $value) {
-                                                                try {
-                                                                    $batchItem = ProductionBatchItem::find($batchItemId);
-                                                                    if ($batchItem) {
-                                                                        $remainingStock = $batchItem->getRemainingStock();
-                                                                        if ($value > $remainingStock) {
-                                                                            $fail("Quantity ({$value}) exceeds available stock ({$remainingStock} cartons).");
-                                                                        }
-                                                                    }
-                                                                } catch (\Exception $e) {
-                                                                    $fail('Unable to validate stock quantity.');
-                                                                }
-                                                            }
-                                                        }
-                                                    };
-                                                },
-                                            ]),
+                                        if (!$batchItemId) {
+                                            return new HtmlString('<p class="text-gray-500">Select a batch to see information.</p>');
+                                        }
 
-                                        TextEntry::make('batch_info')
-                                            ->label('Batch Information')
-                                            ->html() // allow rendering HTML
-                                            ->getStateUsing(function ($get): HtmlString {
-                                                $batchItemId = $get('production_batch_item_id');
-                                                $qtyToShip = $get('qty_shipped');
+                                        $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($batchItemId);
+                                        if (!$batchItem) {
+                                            return new HtmlString('<p class="text-red-600">Batch not found.</p>');
+                                        }
 
-                                                if (!$batchItemId) {
-                                                    return new HtmlString('<p class="text-gray-500">Select a batch to see information.</p>');
-                                                }
+                                        $remainingStock = $batchItem->getRemainingStock();
+                                        $totalShipped = $batchItem->getTotalShipped();
 
-                                                $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($batchItemId);
-                                                if (!$batchItem) {
-                                                    return new HtmlString('<p class="text-red-600">Batch not found.</p>');
-                                                }
+                                        $html = '<div class="space-y-2">';
+                                        $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
+                                        $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
+                                        $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
+                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
+                                        $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
+                                        $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
+                                        $html .= '</div>';
 
-                                                $remainingStock = $batchItem->getRemainingStock();
-                                                $totalShipped = $batchItem->getTotalShipped();
-
-                                                $html = '<div class="space-y-2">';
-                                                $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
-                                                $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
-                                                $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
-                                                $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
-                                                $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
-                                                $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
+                                        if ($qtyToShip) {
+                                            if ($qtyToShip > $remainingStock) {
+                                                $html .= '<div class="mt-3 p-2 bg-red-50 border border-red-200 rounded">';
+                                                $html .= '<p class="text-red-800 text-sm font-medium">⚠️ Quantity exceeds available stock!</p>';
                                                 $html .= '</div>';
-
-                                                if ($qtyToShip) {
-                                                    if ($qtyToShip > $remainingStock) {
-                                                        $html .= '<div class="mt-3 p-2 bg-red-50 border border-red-200 rounded">';
-                                                        $html .= '<p class="text-red-800 text-sm font-medium">⚠️ Quantity exceeds available stock!</p>';
-                                                        $html .= '</div>';
-                                                    } else {
-                                                        $newRemaining = $remainingStock - $qtyToShip;
-                                                        $html .= '<div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">';
-                                                        $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining) . ' cartons remaining</p>';
-                                                        $html .= '</div>';
-                                                    }
-                                                }
-
+                                            } else {
+                                                $newRemaining = $remainingStock - $qtyToShip;
+                                                $html .= '<div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">';
+                                                $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining) . ' cartons remaining</p>';
                                                 $html .= '</div>';
+                                            }
+                                        }
 
-                                                return new HtmlString($html);
-                                            })
-                                            ->columnSpanFull()
-                                            ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
+                                        $html .= '</div>';
 
-                                        Textarea::make('notes')
-                                            ->label('Item Notes')
-                                            ->rows(2)
-                                            ->columnSpan(2)
-                                            ->maxLength(500)
-                                            ->placeholder('Notes specific to this item')
-                                    ])
+                                        return new HtmlString($html);
+                                    })
+                                    ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
+
+                                Textarea::make('notes')
+                                    ->label('Item Notes')
+                                    ->rows(2)
+                                    ->maxLength(500)
+                                    ->placeholder('Notes specific to this item')
                             ])
                             ->addActionLabel('Add Batch to Ship')
                             ->reorderableWithButtons()
@@ -278,8 +223,8 @@ class ShipmentForm
                             ->rules([
                                 function () {
                                     return function (string $attribute, $value, Closure $fail) {
-                                        // Validate no duplicate production batch items
                                         if (is_array($value)) {
+                                            // Validate no duplicate production batch items
                                             $batchItemIds = array_filter(array_column($value, 'production_batch_item_id'));
                                             $duplicates = array_diff_assoc($batchItemIds, array_unique($batchItemIds));
 
@@ -287,26 +232,162 @@ class ShipmentForm
                                                 $fail('Each production batch can only be selected once per shipment.');
                                             }
 
-                                            // Validate stock availability for all items
+                                            // Summary validation: Check stock availability for all items together
+                                            $stockValidationErrors = [];
+                                            $batchItemNames = [];
+
+                                            // First pass: Collect all batch items and their details
                                             foreach ($value as $index => $item) {
                                                 if (isset($item['production_batch_item_id']) && isset($item['qty_shipped'])) {
                                                     try {
-                                                        $batchItem = ProductionBatchItem::find($item['production_batch_item_id']);
+                                                        $batchItem = ProductionBatchItem::with(['product'])->find($item['production_batch_item_id']);
                                                         if ($batchItem) {
                                                             $remainingStock = $batchItem->getRemainingStock();
+                                                            $batchItemNames[$item['production_batch_item_id']] = $batchItem->batch_code;
+
                                                             if ($item['qty_shipped'] > $remainingStock) {
-                                                                $fail("Item " . ($index + 1) . ": Quantity ({$item['qty_shipped']}) exceeds available stock ({$remainingStock} cartons) for batch {$batchItem->batch_code}.");
+                                                                $stockValidationErrors[] = "Batch {$batchItem->batch_code}: Requested {$item['qty_shipped']} cartons, but only {$remainingStock} available";
                                                             }
                                                         }
                                                     } catch (\Exception $e) {
-                                                        $fail("Item " . ($index + 1) . ": Unable to validate stock quantity.");
+                                                        $stockValidationErrors[] = "Item " . ($index + 1) . ": Unable to validate stock quantity";
                                                     }
                                                 }
+                                            }
+
+                                            // If there are stock validation errors, fail with summary message
+                                            if (!empty($stockValidationErrors)) {
+                                                $fail('Stock validation failed for the following items: ' . implode('; ', $stockValidationErrors));
                                             }
                                         }
                                     };
                                 },
                             ]),
+
+                        // Add shipment summary display
+                        TextEntry::make('shipment_summary')
+                            ->label('Shipment Summary')
+                            ->html()
+                            ->getStateUsing(function ($get): HtmlString {
+                                $shipmentItems = $get('shipmentItems') ?? [];
+
+                                if (empty($shipmentItems)) {
+                                    return new HtmlString('<p class="text-gray-500">Add shipment items to see summary.</p>');
+                                }
+
+                                try {
+                                    $summaryData = [];
+                                    $totalItems = 0;
+                                    $totalCartons = 0;
+                                    $allStockSufficient = true;
+                                    $stockIssues = 0;
+
+                                    // Process each shipment item
+                                    foreach ($shipmentItems as $item) {
+                                        if (isset($item['production_batch_item_id']) && isset($item['qty_shipped'])) {
+                                            $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($item['production_batch_item_id']);
+                                            if ($batchItem) {
+                                                $remainingStock = $batchItem->getRemainingStock();
+                                                $isStockSufficient = $item['qty_shipped'] <= $remainingStock;
+                                                $allStockSufficient = $allStockSufficient && $isStockSufficient;
+
+                                                if (!$isStockSufficient) {
+                                                    $stockIssues++;
+                                                }
+
+                                                $summaryData[] = [
+                                                    'batch_code' => $batchItem->batch_code,
+                                                    'product_name' => $batchItem->product->name,
+                                                    'production_date' => $batchItem->productionBatch->production_date->format('Y-m-d'),
+                                                    'qty_shipped' => $item['qty_shipped'],
+                                                    'remaining_stock' => $remainingStock,
+                                                    'is_sufficient' => $isStockSufficient,
+                                                    'shortage' => $isStockSufficient ? 0 : ($item['qty_shipped'] - $remainingStock),
+                                                ];
+
+                                                $totalItems++;
+                                                $totalCartons += $item['qty_shipped'];
+                                            }
+                                        }
+                                    }
+
+                                    if (empty($summaryData)) {
+                                        return new HtmlString('<p class="text-gray-500">No valid shipment items to summarize.</p>');
+                                    }
+
+                                    $html = '<div class="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">';
+                                    $html .= '<h5 class="font-semibold text-blue-900 text-lg">📦 Shipment Summary</h5>';
+
+                                    // Overall statistics
+                                    $html .= '<div class="grid grid-cols-3 gap-4 p-3 bg-white border border-blue-100 rounded">';
+                                    $html .= '<div class="text-center">';
+                                    $html .= '<div class="text-2xl font-bold text-blue-600">' . $totalItems . '</div>';
+                                    $html .= '<div class="text-sm text-gray-600">Total Batches</div>';
+                                    $html .= '</div>';
+                                    $html .= '<div class="text-center">';
+                                    $html .= '<div class="text-2xl font-bold text-blue-600">' . number_format($totalCartons) . '</div>';
+                                    $html .= '<div class="text-sm text-gray-600">Total Cartons</div>';
+                                    $html .= '</div>';
+                                    $html .= '<div class="text-center">';
+                                    $statusIcon = $allStockSufficient ? '✅' : '❌';
+                                    $statusText = $allStockSufficient ? 'Ready to Ship' : 'Stock Issues';
+                                    $statusColor = $allStockSufficient ? 'text-green-600' : 'text-red-600';
+                                    $html .= '<div class="text-2xl font-bold ' . $statusColor . '">' . $statusIcon . '</div>';
+                                    $html .= '<div class="text-sm text-gray-600">' . $statusText . '</div>';
+                                    $html .= '</div>';
+                                    $html .= '</div>';
+
+                                    // Detailed item breakdown
+                                    $html .= '<div class="space-y-2">';
+                                    $html .= '<h6 class="font-medium text-blue-800">Item Details:</h6>';
+
+                                    foreach ($summaryData as $item) {
+                                        $statusIcon = $item['is_sufficient'] ? '✅' : '❌';
+                                        $statusColor = $item['is_sufficient'] ? 'text-green-700' : 'text-red-700';
+                                        $bgColor = $item['is_sufficient'] ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+
+                                        $html .= '<div class="flex justify-between items-center p-3 ' . $bgColor . ' border rounded">';
+                                        $html .= '<div class="flex-1">';
+                                        $html .= '<div class="font-medium text-gray-900">' . e($item['batch_code']) . ' - ' . e($item['product_name']) . '</div>';
+                                        $html .= '<div class="text-sm text-gray-600">Production Date: ' . e($item['production_date']) . '</div>';
+                                        $html .= '</div>';
+                                        $html .= '<div class="text-right">';
+                                        $html .= '<div class="' . $statusColor . ' font-semibold">' . $statusIcon . ' ' . number_format($item['qty_shipped']) . ' cartons</div>';
+                                        $html .= '<div class="text-sm text-gray-600">Available: ' . number_format($item['remaining_stock']) . '</div>';
+
+                                        if (!$item['is_sufficient']) {
+                                            $html .= '<div class="text-sm font-medium text-red-600">Short by: ' . number_format($item['shortage']) . '</div>';
+                                        }
+
+                                        $html .= '</div>';
+                                        $html .= '</div>';
+                                    }
+
+                                    $html .= '</div>';
+
+                                    // Overall status summary
+                                    if (!$allStockSufficient) {
+                                        $html .= '<div class="mt-3 p-3 bg-red-100 border border-red-300 rounded">';
+                                        $html .= '<p class="text-red-900 font-semibold">⚠️ STOCK VALIDATION FAILED: ' . $stockIssues . ' item(s) have insufficient stock!</p>';
+                                        $html .= '<p class="text-red-800 text-sm mt-1">Shipment cannot be processed until stock issues are resolved.</p>';
+                                        $html .= '</div>';
+                                    } else {
+                                        $html .= '<div class="mt-3 p-3 bg-green-100 border border-green-300 rounded">';
+                                        $html .= '<p class="text-green-900 font-semibold">✅ ALL ITEMS VALIDATED</p>';
+                                        $html .= '<p class="text-green-800 text-sm mt-1">Shipment is ready to be processed.</p>';
+                                        $html .= '</div>';
+                                    }
+
+                                    $html .= '</div>';
+
+                                    return new HtmlString($html);
+                                } catch (\Exception $e) {
+                                    Log::error('Error loading shipment summary: ' . $e->getMessage());
+                                    return new HtmlString('<p class="text-red-600 text-sm">Error loading shipment summary.</p>');
+                                }
+                            })
+                            ->columnSpanFull()
+                            ->visible(fn($get): bool => !empty($get('shipmentItems'))),
                     ])
                     ->columns(1),
             ]);
