@@ -64,13 +64,15 @@ class ReceiptForm
                     ->columns(1),
 
                 Section::make('Receipt Items')
+                    ->columns(1)
+                    ->columnSpanFull()
                     ->description('List of packaging items received')
                     ->schema([
                         Repeater::make('receiptItems')
                             ->label('Items')
                             ->relationship()
                             ->schema([
-                                Grid::make(3)
+                                Grid::make(4)
                                     ->schema([
                                         Select::make('packaging_item_id')
                                             ->label('Packaging Item')
@@ -95,13 +97,13 @@ class ReceiptForm
                                             ->default('pcs')
                                             ->placeholder('pcs')
                                             ->helperText('Unit of measure'),
-                                    ]),
 
-                                Textarea::make('notes')
-                                    ->label('Item Notes')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->placeholder('Notes specific to this item'),
+                                        Textarea::make('notes')
+                                            ->label('Item Notes')
+                                            ->rows(2)
+                                            ->maxLength(500)
+                                            ->placeholder('Notes specific to this item'),
+                                    ]),
                             ])
                             ->addActionLabel('Add Item')
                             ->reorderableWithButtons()

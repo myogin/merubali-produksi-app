@@ -72,13 +72,15 @@ class ShipmentForm
                     ->columns(1),
 
                 Section::make('Shipment Items')
+                    ->columns(1)
+                    ->columnSpanFull()
                     ->description('Select production batches and quantities to ship')
                     ->schema([
                         Repeater::make('shipmentItems')
                             ->label('Items to Ship')
                             ->relationship()
                             ->schema([
-                                Grid::make(3)
+                                Grid::make(4)
                                     ->schema([
                                         Select::make('production_batch_id')
                                             ->label('Production Batch')
