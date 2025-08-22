@@ -68,7 +68,6 @@ class ProductionBatchForm
                                             ->label('Batch Code (MFD)')
                                             ->required()
                                             ->unique(ignoreRecord: true)
-                                            ->maxLength(50)
                                             ->placeholder('e.g., MFD-2025-001')
                                             ->helperText('Unique batch/MFD code'),
 
@@ -93,6 +92,8 @@ class ProductionBatchForm
                                             ->required()
                                             ->integer()
                                             ->minValue(1)
+
+                                            ->maxLength(20)
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 100')
                                             ->helperText('Number of cartons to produce')
@@ -173,20 +174,12 @@ class ProductionBatchForm
                                                 },
                                             ]),
 
-                                        TextInput::make('uom')
-                                            ->label('Unit')
-                                            ->required()
-                                            ->default('cartons')
-                                            ->disabled()
-                                            ->helperText('Unit is always cartons'),
-                                    ]),
-
-                                Textarea::make('notes')
-                                    ->label('Item Notes')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->placeholder('Notes specific to this production item')
-                                    ->columnSpanFull(),
+                                        Textarea::make('notes')
+                                            ->label('Item Notes')
+                                            ->rows(2)
+                                            ->maxLength(500)
+                                            ->placeholder('Notes specific to this production item')
+                                    ])
                             ])
                             ->addActionLabel('Add Production Item')
                             ->reorderableWithButtons()

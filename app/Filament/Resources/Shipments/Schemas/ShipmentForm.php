@@ -209,68 +209,61 @@ class ShipmentForm
                                                 },
                                             ]),
 
-                                        TextInput::make('uom')
-                                            ->label('Unit')
-                                            ->required()
-                                            ->default('cartons')
-                                            ->disabled()
-                                            ->helperText('Unit is always cartons'),
-                                    ]),
+                                        TextEntry::make('batch_info')
+                                            ->label('Batch Information')
+                                            ->html() // allow rendering HTML
+                                            ->getStateUsing(function ($get): HtmlString {
+                                                $batchItemId = $get('production_batch_item_id');
+                                                $qtyToShip = $get('qty_shipped');
 
-                                TextEntry::make('batch_info')
-                                    ->label('Batch Information')
-                                    ->html() // allow rendering HTML
-                                    ->getStateUsing(function ($get): HtmlString {
-                                        $batchItemId = $get('production_batch_item_id');
-                                        $qtyToShip = $get('qty_shipped');
+                                                if (!$batchItemId) {
+                                                    return new HtmlString('<p class="text-gray-500">Select a batch to see information.</p>');
+                                                }
 
-                                        if (!$batchItemId) {
-                                            return new HtmlString('<p class="text-gray-500">Select a batch to see information.</p>');
-                                        }
+                                                $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($batchItemId);
+                                                if (!$batchItem) {
+                                                    return new HtmlString('<p class="text-red-600">Batch not found.</p>');
+                                                }
 
-                                        $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($batchItemId);
-                                        if (!$batchItem) {
-                                            return new HtmlString('<p class="text-red-600">Batch not found.</p>');
-                                        }
+                                                $remainingStock = $batchItem->getRemainingStock();
+                                                $totalShipped = $batchItem->getTotalShipped();
 
-                                        $remainingStock = $batchItem->getRemainingStock();
-                                        $totalShipped = $batchItem->getTotalShipped();
-
-                                        $html = '<div class="space-y-2">';
-                                        $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
-                                        $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
-                                        $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
-                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
-                                        $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
-                                        $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
-                                        $html .= '</div>';
-
-                                        if ($qtyToShip) {
-                                            if ($qtyToShip > $remainingStock) {
-                                                $html .= '<div class="mt-3 p-2 bg-red-50 border border-red-200 rounded">';
-                                                $html .= '<p class="text-red-800 text-sm font-medium">⚠️ Quantity exceeds available stock!</p>';
+                                                $html = '<div class="space-y-2">';
+                                                $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
+                                                $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
+                                                $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
+                                                $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
+                                                $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
+                                                $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
                                                 $html .= '</div>';
-                                            } else {
-                                                $newRemaining = $remainingStock - $qtyToShip;
-                                                $html .= '<div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">';
-                                                $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining) . ' cartons remaining</p>';
+
+                                                if ($qtyToShip) {
+                                                    if ($qtyToShip > $remainingStock) {
+                                                        $html .= '<div class="mt-3 p-2 bg-red-50 border border-red-200 rounded">';
+                                                        $html .= '<p class="text-red-800 text-sm font-medium">⚠️ Quantity exceeds available stock!</p>';
+                                                        $html .= '</div>';
+                                                    } else {
+                                                        $newRemaining = $remainingStock - $qtyToShip;
+                                                        $html .= '<div class="mt-3 p-2 bg-green-50 border border-green-200 rounded">';
+                                                        $html .= '<p class="text-green-800 text-sm"><strong>After shipment:</strong> ' . number_format($newRemaining) . ' cartons remaining</p>';
+                                                        $html .= '</div>';
+                                                    }
+                                                }
+
                                                 $html .= '</div>';
-                                            }
-                                        }
 
-                                        $html .= '</div>';
+                                                return new HtmlString($html);
+                                            })
+                                            ->columnSpanFull()
+                                            ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
 
-                                        return new HtmlString($html);
-                                    })
-                                    ->columnSpanFull()
-                                    ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
-
-                                Textarea::make('notes')
-                                    ->label('Item Notes')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->placeholder('Notes specific to this item')
-                                    ->columnSpanFull(),
+                                        Textarea::make('notes')
+                                            ->label('Item Notes')
+                                            ->rows(2)
+                                            ->columnSpan(2)
+                                            ->maxLength(500)
+                                            ->placeholder('Notes specific to this item')
+                                    ])
                             ])
                             ->addActionLabel('Add Batch to Ship')
                             ->reorderableWithButtons()
