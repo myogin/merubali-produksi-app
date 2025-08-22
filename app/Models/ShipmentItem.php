@@ -12,7 +12,7 @@ class ShipmentItem extends Model
 
     protected $fillable = [
         'shipment_id',
-        'production_batch_id',
+        'production_batch_item_id',
         'qty_shipped',
         'uom',
         'notes',
@@ -31,10 +31,10 @@ class ShipmentItem extends Model
     }
 
     /**
-     * Get the production batch that belongs to the shipment item.
+     * Get the production batch item that belongs to the shipment item.
      */
-    public function productionBatch(): BelongsTo
+    public function productionBatchItem(): BelongsTo
     {
-        return $this->belongsTo(ProductionBatch::class);
+        return $this->belongsTo(ProductionBatchItem::class);
     }
 }

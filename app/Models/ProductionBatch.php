@@ -6,59 +6,44 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class ProductionBatch extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'batch_code',
         'production_date',
         'po_number',
-        'product_id',
-        'qty_produced',
-        'uom',
         'notes',
     ];
 
     protected $casts = [
         'production_date' => 'date',
-        'qty_produced' => 'decimal:2',
     ];
 
     /**
-     * Get the product that owns the production batch.
+     * Get the production batch items for the production batch.
      */
-    public function product(): BelongsTo
+    public function productionBatchItems(): HasMany
     {
-        return $this->belongsTo(Product::class);
+        return $this->hasMany(ProductionBatchItem::class);
     }
 
     /**
-     * Get the shipment items for this batch.
+     * Get the stock movements for this batch through batch items.
      */
-    public function shipmentItems(): HasMany
+    public function stockMovements(): HasManyThrough
     {
-        return $this->hasMany(ShipmentItem::class);
+        return $this->hasManyThrough(StockMovement::class, ProductionBatchItem::class, 'production_batch_id', 'batch_id');
     }
 
     /**
-     * Get the stock movements for this batch.
+     * Get total produced quantity for this batch.
      */
-    public function stockMovements(): HasMany
+    public function getTotalProduced()
     {
-        return $this->hasMany(StockMovement::class, 'batch_id');
-    }
-
-    /**
-     * Get current stock for this batch.
-     */
-    public function getCurrentStock()
-    {
-        return $this->stockMovements()
-            ->where('item_type', 'finished_goods')
-            ->selectRaw('SUM(CASE WHEN movement_type = "in" THEN qty ELSE -qty END) as current_stock')
-            ->value('current_stock') ?? 0;
+        return $this->productionBatchItems()->sum('qty_produced');
     }
 
     /**
@@ -66,7 +51,7 @@ class ProductionBatch extends Model
      */
     public function getTotalShipped()
     {
-        return $this->shipmentItems()->sum('qty_shipped');
+        return $this->productionBatchItems()->withSum('shipmentItems', 'qty_shipped')->get()->sum('shipment_items_sum_qty_shipped') ?? 0;
     }
 
     /**
@@ -74,6 +59,6 @@ class ProductionBatch extends Model
      */
     public function getRemainingStock()
     {
-        return $this->qty_produced - $this->getTotalShipped();
+        return $this->getTotalProduced() - $this->getTotalShipped();
     }
 }

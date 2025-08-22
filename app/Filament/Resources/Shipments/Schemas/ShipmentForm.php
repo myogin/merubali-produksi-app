@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Shipments\Schemas;
 
-use App\Models\ProductionBatch;
+use App\Models\ProductionBatchItem;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -82,7 +82,7 @@ class ShipmentForm
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
-                                        Select::make('production_batch_id')
+                                        Select::make('production_batch_item_id')
                                             ->label('Production Batch')
                                             ->required()
                                             ->options(function () {
@@ -91,28 +91,28 @@ class ShipmentForm
 
                                                 if ($cachedOptions === null) {
                                                     try {
-                                                        $batches = ProductionBatch::with(['product', 'shipmentItems'])
+                                                        $batchItems = ProductionBatchItem::with(['product', 'shipmentItems'])
                                                             ->whereHas('stockMovements', function ($query) {
                                                                 $query->where('item_type', 'finished_goods')
                                                                     ->where('movement_type', 'in');
                                                             })
                                                             ->get();
 
-                                                        $cachedOptions = $batches
-                                                            ->filter(function ($batch) {
-                                                                return $batch->getRemainingStock() > 0;
+                                                        $cachedOptions = $batchItems
+                                                            ->filter(function ($batchItem) {
+                                                                return $batchItem->getRemainingStock() > 0;
                                                             })
-                                                            ->mapWithKeys(function ($batch) {
-                                                                $remaining = $batch->getRemainingStock();
+                                                            ->mapWithKeys(function ($batchItem) {
+                                                                $remaining = $batchItem->getRemainingStock();
                                                                 return [
-                                                                    $batch->id => "{$batch->batch_code} - {$batch->product->name} (Available: {$remaining} cartons)"
+                                                                    $batchItem->id => "{$batchItem->batch_code} - {$batchItem->product->name} (Available: {$remaining} cartons)"
                                                                 ];
                                                             })
                                                             ->toArray();
                                                     } catch (\Exception $e) {
                                                         // Handle database errors gracefully
                                                         $cachedOptions = [];
-                                                        Log::error('Error loading production batches for shipment form: ' . $e->getMessage());
+                                                        Log::error('Error loading production batch items for shipment form: ' . $e->getMessage());
                                                     }
                                                 }
 
@@ -131,7 +131,7 @@ class ShipmentForm
                                                     $duplicateCount = 0;
 
                                                     foreach ($allItems as $item) {
-                                                        if (isset($item['production_batch_id']) && $item['production_batch_id'] == $state) {
+                                                        if (isset($item['production_batch_item_id']) && $item['production_batch_item_id'] == $state) {
                                                             $duplicateCount++;
                                                         }
                                                     }
@@ -157,11 +157,11 @@ class ShipmentForm
                                             ->helperText('Quantity to ship (cartons)')
                                             ->afterStateUpdated(function ($set, $get, $state) {
                                                 // Validate quantity against available stock
-                                                if ($state && $get('production_batch_id')) {
+                                                if ($state && $get('production_batch_item_id')) {
                                                     try {
-                                                        $batch = ProductionBatch::find($get('production_batch_id'));
-                                                        if ($batch) {
-                                                            $remainingStock = $batch->getRemainingStock();
+                                                        $batchItem = ProductionBatchItem::find($get('production_batch_item_id'));
+                                                        if ($batchItem) {
+                                                            $remainingStock = $batchItem->getRemainingStock();
                                                             if ($state > $remainingStock) {
                                                                 Notification::make()
                                                                     ->title('Insufficient Stock')
@@ -189,13 +189,13 @@ class ShipmentForm
 
                                                         if ($itemIndex !== null) {
                                                             $formData = request()->input('data', []);
-                                                            $batchId = $formData['shipmentItems'][$itemIndex]['production_batch_id'] ?? null;
+                                                            $batchItemId = $formData['shipmentItems'][$itemIndex]['production_batch_item_id'] ?? null;
 
-                                                            if ($batchId && $value) {
+                                                            if ($batchItemId && $value) {
                                                                 try {
-                                                                    $batch = ProductionBatch::find($batchId);
-                                                                    if ($batch) {
-                                                                        $remainingStock = $batch->getRemainingStock();
+                                                                    $batchItem = ProductionBatchItem::find($batchItemId);
+                                                                    if ($batchItem) {
+                                                                        $remainingStock = $batchItem->getRemainingStock();
                                                                         if ($value > $remainingStock) {
                                                                             $fail("Quantity ({$value}) exceeds available stock ({$remainingStock} cartons).");
                                                                         }
@@ -221,26 +221,26 @@ class ShipmentForm
                                     ->label('Batch Information')
                                     ->html() // allow rendering HTML
                                     ->getStateUsing(function ($get): HtmlString {
-                                        $batchId = $get('production_batch_id');
+                                        $batchItemId = $get('production_batch_item_id');
                                         $qtyToShip = $get('qty_shipped');
 
-                                        if (!$batchId) {
+                                        if (!$batchItemId) {
                                             return new HtmlString('<p class="text-gray-500">Select a batch to see information.</p>');
                                         }
 
-                                        $batch = ProductionBatch::with('product')->find($batchId);
-                                        if (!$batch) {
+                                        $batchItem = ProductionBatchItem::with(['product', 'productionBatch'])->find($batchItemId);
+                                        if (!$batchItem) {
                                             return new HtmlString('<p class="text-red-600">Batch not found.</p>');
                                         }
 
-                                        $remainingStock = $batch->getRemainingStock();
-                                        $totalShipped = $batch->getTotalShipped();
+                                        $remainingStock = $batchItem->getRemainingStock();
+                                        $totalShipped = $batchItem->getTotalShipped();
 
                                         $html = '<div class="space-y-2">';
                                         $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
-                                        $html .= '<div><strong>Product:</strong> ' . e($batch->product->name) . '</div>';
-                                        $html .= '<div><strong>Production Date:</strong> ' . e($batch->production_date->format('Y-m-d')) . '</div>';
-                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batch->qty_produced) . ' cartons</div>';
+                                        $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
+                                        $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
+                                        $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
                                         $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
                                         $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
                                         $html .= '</div>';
@@ -263,7 +263,7 @@ class ShipmentForm
                                         return new HtmlString($html);
                                     })
                                     ->columnSpanFull()
-                                    ->visible(fn($get): bool => (bool) $get('production_batch_id')),
+                                    ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
 
                                 Textarea::make('notes')
                                     ->label('Item Notes')
@@ -277,7 +277,7 @@ class ShipmentForm
                             ->collapsible()
                             ->itemLabel(
                                 fn(array $state): ?string =>
-                                isset($state['production_batch_id']) && isset($state['qty_shipped'])
+                                isset($state['production_batch_item_id']) && isset($state['qty_shipped'])
                                     ? "Batch: {$state['qty_shipped']} cartons"
                                     : 'New Item'
                             )
@@ -285,10 +285,10 @@ class ShipmentForm
                             ->rules([
                                 function () {
                                     return function (string $attribute, $value, Closure $fail) {
-                                        // Validate no duplicate production batches
+                                        // Validate no duplicate production batch items
                                         if (is_array($value)) {
-                                            $batchIds = array_filter(array_column($value, 'production_batch_id'));
-                                            $duplicates = array_diff_assoc($batchIds, array_unique($batchIds));
+                                            $batchItemIds = array_filter(array_column($value, 'production_batch_item_id'));
+                                            $duplicates = array_diff_assoc($batchItemIds, array_unique($batchItemIds));
 
                                             if (!empty($duplicates)) {
                                                 $fail('Each production batch can only be selected once per shipment.');
@@ -296,13 +296,13 @@ class ShipmentForm
 
                                             // Validate stock availability for all items
                                             foreach ($value as $index => $item) {
-                                                if (isset($item['production_batch_id']) && isset($item['qty_shipped'])) {
+                                                if (isset($item['production_batch_item_id']) && isset($item['qty_shipped'])) {
                                                     try {
-                                                        $batch = ProductionBatch::find($item['production_batch_id']);
-                                                        if ($batch) {
-                                                            $remainingStock = $batch->getRemainingStock();
+                                                        $batchItem = ProductionBatchItem::find($item['production_batch_item_id']);
+                                                        if ($batchItem) {
+                                                            $remainingStock = $batchItem->getRemainingStock();
                                                             if ($item['qty_shipped'] > $remainingStock) {
-                                                                $fail("Item " . ($index + 1) . ": Quantity ({$item['qty_shipped']}) exceeds available stock ({$remainingStock} cartons) for batch {$batch->batch_code}.");
+                                                                $fail("Item " . ($index + 1) . ": Quantity ({$item['qty_shipped']}) exceeds available stock ({$remainingStock} cartons) for batch {$batchItem->batch_code}.");
                                                             }
                                                         }
                                                     } catch (\Exception $e) {

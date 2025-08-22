@@ -16,33 +16,35 @@ class ProductionBatchesTable
     {
         return $table
             ->columns([
-                TextColumn::make('batch_code')
-                    ->label('Batch Code (MFD)')
-                    ->searchable()
-                    ->sortable(),
-
                 TextColumn::make('production_date')
                     ->label('Production Date')
                     ->date()
                     ->sortable(),
-
-                TextColumn::make('product.product_code')
-                    ->label('Product Code')
-                    ->searchable(),
-
-                TextColumn::make('product.name')
-                    ->label('Product Name')
-                    ->searchable(),
 
                 TextColumn::make('po_number')
                     ->label('PO Number')
                     ->searchable()
                     ->placeholder('N/A'),
 
-                TextColumn::make('qty_produced')
-                    ->label('Qty Produced')
+                TextColumn::make('productionBatchItems_count')
+                    ->label('Items Count')
+                    ->counts('productionBatchItems')
+                    ->suffix(' items'),
+
+                TextColumn::make('total_produced')
+                    ->label('Total Produced')
+                    ->getStateUsing(function ($record) {
+                        return $record->getTotalProduced();
+                    })
                     ->numeric()
-                    ->sortable()
+                    ->suffix(' cartons'),
+
+                TextColumn::make('total_shipped')
+                    ->label('Total Shipped')
+                    ->getStateUsing(function ($record) {
+                        return $record->getTotalShipped();
+                    })
+                    ->numeric()
                     ->suffix(' cartons'),
 
                 TextColumn::make('remaining_stock')
@@ -54,14 +56,25 @@ class ProductionBatchesTable
                     ->suffix(' cartons')
                     ->color(fn($state) => $state > 0 ? 'success' : ($state == 0 ? 'warning' : 'danger')),
 
-                TextColumn::make('total_shipped')
-                    ->label('Total Shipped')
+                TextColumn::make('batch_codes')
+                    ->label('Batch Codes')
                     ->getStateUsing(function ($record) {
-                        return $record->getTotalShipped();
+                        return $record->productionBatchItems->pluck('batch_code')->join(', ');
                     })
-                    ->numeric()
-                    ->suffix(' cartons')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->limit(50)
+                    ->tooltip(function ($record) {
+                        return $record->productionBatchItems->pluck('batch_code')->join(', ');
+                    }),
+
+                TextColumn::make('products')
+                    ->label('Products')
+                    ->getStateUsing(function ($record) {
+                        return $record->productionBatchItems->load('product')->pluck('product.name')->unique()->join(', ');
+                    })
+                    ->limit(50)
+                    ->tooltip(function ($record) {
+                        return $record->productionBatchItems->load('product')->pluck('product.name')->unique()->join(', ');
+                    }),
 
                 TextColumn::make('created_at')
                     ->label('Created')
@@ -76,12 +89,6 @@ class ProductionBatchesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('product_id')
-                    ->label('Product')
-                    ->relationship('product', 'name')
-                    ->searchable()
-                    ->preload(),
-
                 SelectFilter::make('has_remaining_stock')
                     ->label('Stock Status')
                     ->options([
@@ -90,15 +97,19 @@ class ProductionBatchesTable
                     ])
                     ->query(function ($query, array $data) {
                         if ($data['value'] === 'available') {
-                            return $query->whereHas('stockMovements', function ($q) {
-                                $q->where('item_type', 'finished_goods')
-                                    ->where('movement_type', 'in');
-                            })->whereDoesntHave('shipmentItems', function ($q) {
-                                $q->whereRaw('qty_shipped >= (SELECT qty_produced FROM production_batches WHERE id = production_batch_id)');
+                            return $query->whereHas('productionBatchItems', function ($q) {
+                                $q->whereHas('stockMovements', function ($sq) {
+                                    $sq->where('item_type', 'finished_goods')
+                                        ->where('movement_type', 'in');
+                                })->whereDoesntHave('shipmentItems', function ($sq) {
+                                    $sq->whereRaw('qty_shipped >= (SELECT qty_produced FROM production_batch_items WHERE id = production_batch_item_id)');
+                                });
                             });
                         } elseif ($data['value'] === 'depleted') {
-                            return $query->whereHas('shipmentItems', function ($q) {
-                                $q->whereRaw('qty_shipped >= (SELECT qty_produced FROM production_batches WHERE id = production_batch_id)');
+                            return $query->whereHas('productionBatchItems', function ($q) {
+                                $q->whereHas('shipmentItems', function ($sq) {
+                                    $sq->whereRaw('qty_shipped >= (SELECT qty_produced FROM production_batch_items WHERE id = production_batch_item_id)');
+                                });
                             });
                         }
                     }),
