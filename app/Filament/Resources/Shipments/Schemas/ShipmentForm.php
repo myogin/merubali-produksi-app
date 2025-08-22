@@ -80,7 +80,7 @@ class ShipmentForm
                             ->label('Items to Ship')
                             ->relationship()
                             ->schema([
-                                Grid::make(2)
+                                Grid::make(4)
                                     ->schema([
                                         Select::make('production_batch_item_id')
                                             ->label('Production Batch')
@@ -155,6 +155,12 @@ class ShipmentForm
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 50')
                                             ->helperText('Quantity to ship (cartons)'),
+                                        Textarea::make('notes')
+                                            ->label('Item Notes')
+                                            ->rows(2)
+                                            ->maxLength(500)
+                                            ->columnSpan(2)
+                                            ->placeholder('Notes specific to this item')
                                     ]),
 
                                 TextEntry::make('batch_info')
@@ -204,11 +210,7 @@ class ShipmentForm
                                     })
                                     ->visible(fn($get): bool => (bool) $get('production_batch_item_id')),
 
-                                Textarea::make('notes')
-                                    ->label('Item Notes')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->placeholder('Notes specific to this item')
+
                             ])
                             ->addActionLabel('Add Batch to Ship')
                             ->reorderableWithButtons()
