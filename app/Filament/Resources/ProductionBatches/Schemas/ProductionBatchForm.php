@@ -60,14 +60,13 @@ class ProductionBatchForm
                     ->schema([
                         Repeater::make('productionBatchItems')
                             ->label('Production Items')
-                            ->relationship()
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
                                         TextInput::make('batch_code')
                                             ->label('Batch Code (MFD)')
                                             ->required()
-                                            ->unique(ignoreRecord: true)
+                                            ->unique('production_batch_items', 'batch_code', ignoreRecord: true)
                                             ->placeholder('e.g., MFD-2025-001')
                                             ->helperText('Unique batch/MFD code'),
 

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Shipments\Pages;
 
 use App\Filament\Resources\Shipments\ShipmentResource;
-use App\Models\ProductionBatch;
+use App\Models\ProductionBatchItem;
 use App\Models\StockMovement;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -51,18 +51,18 @@ class CreateShipment extends CreateRecord
         $insufficientItems = [];
 
         foreach ($shipmentItems as $itemData) {
-            $batch = ProductionBatch::find($itemData['production_batch_id']);
-            if (!$batch) {
+            $batchItem = ProductionBatchItem::find($itemData['production_batch_item_id']);
+            if (!$batchItem) {
                 continue;
             }
 
-            $remainingStock = $batch->getRemainingStock();
+            $remainingStock = $batchItem->getRemainingStock();
             $qtyToShip = $itemData['qty_shipped'];
 
             if ($qtyToShip > $remainingStock) {
                 $insufficientItems[] = [
-                    'batch' => $batch->batch_code,
-                    'product' => $batch->product->name,
+                    'batch' => $batchItem->batch_code,
+                    'product' => $batchItem->product->name,
                     'requested' => $qtyToShip,
                     'available' => $remainingStock,
                     'shortage' => $qtyToShip - $remainingStock,
@@ -93,14 +93,14 @@ class CreateShipment extends CreateRecord
             StockMovement::create([
                 'movement_date' => $record->shipment_date,
                 'item_type' => 'finished_goods',
-                'item_id' => $item->productionBatch->product_id,
-                'batch_id' => $item->production_batch_id,
+                'item_id' => $item->productionBatchItem->product_id,
+                'batch_id' => $item->production_batch_item_id,
                 'qty' => $item->qty_shipped,
                 'uom' => $item->uom ?? 'cartons', // Default to 'cartons' if uom is null
                 'movement_type' => 'out',
                 'reference_type' => 'shipment',
                 'reference_id' => $record->id,
-                'notes' => "Shipment {$record->shipment_number} - Batch {$item->productionBatch->batch_code}",
+                'notes' => "Shipment {$record->shipment_number} - Batch {$item->productionBatchItem->batch_code}",
             ]);
         }
     }

@@ -53,6 +53,14 @@ class StockMovement extends Model
     }
 
     /**
+     * Get the production batch item (for finished goods movements with new structure).
+     */
+    public function productionBatchItem(): BelongsTo
+    {
+        return $this->belongsTo(ProductionBatchItem::class, 'batch_id');
+    }
+
+    /**
      * Get the receipt (for receipt reference).
      */
     public function receipt(): BelongsTo

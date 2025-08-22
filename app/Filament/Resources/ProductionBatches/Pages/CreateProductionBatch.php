@@ -8,6 +8,7 @@ use App\Models\StockMovement;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class CreateProductionBatch extends CreateRecord
 {
@@ -15,6 +16,9 @@ class CreateProductionBatch extends CreateRecord
 
     protected function handleRecordCreation(array $data): Model
     {
+        Log::info("=== PRODUCTION BATCH CREATION STARTED ===");
+        Log::info("Received data: " . json_encode($data, JSON_PRETTY_PRINT));
+
         // Validate stock availability for all production batch items
         $this->validateStockAvailability($data);
 
@@ -25,11 +29,17 @@ class CreateProductionBatch extends CreateRecord
             'notes' => $data['notes'] ?? null,
         ];
 
+        Log::info("Creating production batch with data: " . json_encode($productionBatchData, JSON_PRETTY_PRINT));
         $record = static::getModel()::create($productionBatchData);
+        Log::info("Created production batch ID: {$record->id}");
 
         // Create production batch items and generate stock movements
         if (isset($data['productionBatchItems'])) {
-            foreach ($data['productionBatchItems'] as $itemData) {
+            Log::info("Found " . count($data['productionBatchItems']) . " production batch items to process");
+
+            foreach ($data['productionBatchItems'] as $index => $itemData) {
+                Log::info("Processing item {$index}: " . json_encode($itemData, JSON_PRETTY_PRINT));
+
                 $productionBatchItem = $record->productionBatchItems()->create([
                     'batch_code' => $itemData['batch_code'],
                     'product_id' => $itemData['product_id'],
@@ -38,11 +48,18 @@ class CreateProductionBatch extends CreateRecord
                     'notes' => $itemData['notes'] ?? null,
                 ]);
 
+                Log::info("Created production batch item ID: {$productionBatchItem->id}");
+
                 // Generate stock movements for this item
+                Log::info("About to generate stock movements for item {$productionBatchItem->id}");
                 $this->generateStockMovements($record, $productionBatchItem);
+                Log::info("Completed stock movements for item {$productionBatchItem->id}");
             }
+        } else {
+            Log::warning("No productionBatchItems found in data!");
         }
 
+        Log::info("=== PRODUCTION BATCH CREATION COMPLETED ===");
         return $record;
     }
 
@@ -114,39 +131,55 @@ class CreateProductionBatch extends CreateRecord
 
     protected function generateStockMovements(Model $productionBatch, Model $productionBatchItem): void
     {
-        $boms = Bom::where('product_id', $productionBatchItem->product_id)->get();
+        try {
+            Log::info("Starting stock movement generation for batch item: {$productionBatchItem->batch_code}");
 
-        // Create outbound movements for packaging materials
-        foreach ($boms as $bom) {
-            $requiredQty = $bom->qty_per_unit * $productionBatchItem->qty_produced;
+            $boms = Bom::where('product_id', $productionBatchItem->product_id)->get();
+            Log::info("Found " . $boms->count() . " BOM entries for product ID: {$productionBatchItem->product_id}");
 
-            StockMovement::create([
+            // Create outbound movements for packaging materials
+            foreach ($boms as $bom) {
+                $requiredQty = $bom->qty_per_unit * $productionBatchItem->qty_produced;
+                Log::info("Creating outbound movement for packaging item {$bom->packaging_item_id}, qty: {$requiredQty}");
+
+                $outboundMovement = StockMovement::create([
+                    'movement_date' => $productionBatch->production_date,
+                    'item_type' => 'packaging',
+                    'item_id' => $bom->packaging_item_id,
+                    'batch_id' => null,
+                    'qty' => $requiredQty,
+                    'uom' => $bom->uom,
+                    'movement_type' => 'out',
+                    'reference_type' => 'production',
+                    'reference_id' => $productionBatch->id,
+                    'notes' => "Production consumption for batch {$productionBatchItem->batch_code}",
+                ]);
+                Log::info("Created outbound movement ID: {$outboundMovement->id}");
+            }
+
+            // Create inbound movement for finished goods
+            Log::info("Creating inbound movement for product {$productionBatchItem->product_id}, qty: {$productionBatchItem->qty_produced}");
+
+            $inboundMovement = StockMovement::create([
                 'movement_date' => $productionBatch->production_date,
-                'item_type' => 'packaging',
-                'item_id' => $bom->packaging_item_id,
-                'batch_id' => null,
-                'qty' => $requiredQty,
-                'uom' => $bom->uom,
-                'movement_type' => 'out',
+                'item_type' => 'finished_goods',
+                'item_id' => $productionBatchItem->product_id,
+                'batch_id' => $productionBatchItem->id, // Reference the production batch item
+                'qty' => $productionBatchItem->qty_produced,
+                'uom' => 'cartons',
+                'movement_type' => 'in',
                 'reference_type' => 'production',
                 'reference_id' => $productionBatch->id,
-                'notes' => "Production consumption for batch {$productionBatchItem->batch_code}",
+                'notes' => "Production output for batch {$productionBatchItem->batch_code}",
             ]);
-        }
+            Log::info("Created inbound movement ID: {$inboundMovement->id}");
 
-        // Create inbound movement for finished goods
-        StockMovement::create([
-            'movement_date' => $productionBatch->production_date,
-            'item_type' => 'finished_goods',
-            'item_id' => $productionBatchItem->product_id,
-            'batch_id' => $productionBatchItem->id, // Reference the production batch item
-            'qty' => $productionBatchItem->qty_produced,
-            'uom' => 'cartons',
-            'movement_type' => 'in',
-            'reference_type' => 'production',
-            'reference_id' => $productionBatch->id,
-            'notes' => "Production output for batch {$productionBatchItem->batch_code}",
-        ]);
+            Log::info("Stock movement generation completed for batch item: {$productionBatchItem->batch_code}");
+        } catch (\Exception $e) {
+            Log::error("Error generating stock movements for batch {$productionBatchItem->batch_code}: " . $e->getMessage());
+            Log::error("Stack trace: " . $e->getTraceAsString());
+            throw $e;
+        }
     }
 
     protected function getRedirectUrl(): string

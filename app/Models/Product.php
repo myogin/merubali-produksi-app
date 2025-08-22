@@ -30,11 +30,11 @@ class Product extends Model
     }
 
     /**
-     * Get the production batches for the product.
+     * Get the production batch items for the product.
      */
-    public function productionBatches(): HasMany
+    public function productionBatchItems(): HasMany
     {
-        return $this->hasMany(ProductionBatch::class);
+        return $this->hasMany(ProductionBatchItem::class);
     }
 
     /**
