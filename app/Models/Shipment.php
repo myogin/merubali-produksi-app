@@ -15,7 +15,6 @@ class Shipment extends Model
         'shipment_number',
         'shipment_date',
         'destination_id',
-        'destination',
         'delivery_note_number',
         'notes',
     ];

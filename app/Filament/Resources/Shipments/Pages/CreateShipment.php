@@ -22,7 +22,7 @@ class CreateShipment extends CreateRecord
         $record = static::getModel()::create([
             'shipment_number' => $data['shipment_number'],
             'shipment_date' => $data['shipment_date'],
-            'destination' => $data['destination'],
+            'destination_id' => $data['destination_id'],
             'delivery_note_number' => $data['delivery_note_number'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);

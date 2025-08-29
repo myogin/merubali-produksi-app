@@ -19,7 +19,8 @@ class ShipmentsTable
                 TextColumn::make('shipment_date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('destination')
+                TextColumn::make('destination.name')
+                    ->label('Destination')
                     ->searchable(),
                 TextColumn::make('delivery_note_number')
                     ->searchable(),
