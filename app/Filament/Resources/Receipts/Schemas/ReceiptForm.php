@@ -28,14 +28,12 @@ class ReceiptForm
                                     ->required()
                                     ->unique(ignoreRecord: true)
                                     ->maxLength(50)
-                                    ->placeholder('e.g., RCP-2025-001')
-                                    ->helperText('Unique receipt number'),
+                                    ->placeholder('e.g., RCP-2025-001'),
 
                                 DatePicker::make('receipt_date')
                                     ->label('Receipt Date')
                                     ->required()
-                                    ->default(now())
-                                    ->helperText('Date when packaging was received'),
+                                    ->default(now()),
                             ]),
 
                         Grid::make(2)
@@ -44,15 +42,13 @@ class ReceiptForm
                                     ->label('Supplier Name')
                                     ->required()
                                     ->maxLength(255)
-                                    ->placeholder('e.g., PT. Supplier Kemasan')
-                                    ->helperText('Name of the packaging supplier'),
+                                    ->placeholder('e.g., PT. Supplier Kemasan'),
 
                                 TextInput::make('delivery_note_url')
                                     ->label('Delivery Note URL')
                                     ->url()
                                     ->maxLength(500)
-                                    ->placeholder('https://drive.google.com/...')
-                                    ->helperText('Link to delivery note document'),
+                                    ->placeholder('https://drive.google.com/...'),
                             ]),
 
                         Textarea::make('notes')
@@ -80,23 +76,20 @@ class ReceiptForm
                                             ->relationship('packagingItem', 'name')
                                             ->searchable()
                                             ->preload()
-                                            ->getOptionLabelFromRecordUsing(fn(PackagingItem $record): string => "{$record->packaging_code} - {$record->name}")
-                                            ->helperText('Select packaging item'),
+                                            ->getOptionLabelFromRecordUsing(fn(PackagingItem $record): string => "{$record->packaging_code} - {$record->name}"),
 
                                         TextInput::make('qty_received')
                                             ->label('Quantity Received')
                                             ->required()
                                             ->integer()
                                             ->minValue(1)
-                                            ->placeholder('e.g., 1000')
-                                            ->helperText('Quantity received'),
+                                            ->placeholder('e.g., 1000'),
 
                                         TextInput::make('uom')
                                             ->label('Unit')
                                             ->required()
                                             ->default('pcs')
-                                            ->placeholder('pcs')
-                                            ->helperText('Unit of measure'),
+                                            ->placeholder('pcs'),
 
                                         Textarea::make('notes')
                                             ->label('Item Notes')
@@ -106,14 +99,8 @@ class ReceiptForm
                                     ]),
                             ])
                             ->addActionLabel('Add Item')
-                            ->reorderableWithButtons()
+                            ->reorderable(false)
                             ->collapsible()
-                            ->itemLabel(
-                                fn(array $state): ?string =>
-                                isset($state['packaging_item_id']) && isset($state['qty_received'])
-                                    ? "Item: {$state['qty_received']} units"
-                                    : 'New Item'
-                            )
                             ->minItems(1),
                     ])
                     ->columns(1),

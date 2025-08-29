@@ -37,14 +37,12 @@ class ShipmentForm
                                     ->required()
                                     ->unique(ignoreRecord: true)
                                     ->maxLength(50)
-                                    ->placeholder('e.g., SHP-2025-001')
-                                    ->helperText('Unique shipment number'),
+                                    ->placeholder('e.g., SHP-2025-001'),
 
                                 DatePicker::make('shipment_date')
                                     ->label('Shipment Date')
                                     ->required()
-                                    ->default(now())
-                                    ->helperText('Date of shipment'),
+                                    ->default(now()),
                             ]),
 
                         Grid::make(2)
@@ -53,14 +51,12 @@ class ShipmentForm
                                     ->label('Destination')
                                     ->required()
                                     ->maxLength(255)
-                                    ->placeholder('e.g., Jakarta, Indonesia')
-                                    ->helperText('Shipment destination'),
+                                    ->placeholder('e.g., Jakarta, Indonesia'),
 
                                 TextInput::make('delivery_note_number')
                                     ->label('Delivery Note Number')
                                     ->maxLength(100)
-                                    ->placeholder('e.g., DN-2025-001')
-                                    ->helperText('Delivery note reference (optional)'),
+                                    ->placeholder('e.g., DN-2025-001'),
                             ]),
 
                         Textarea::make('notes')
@@ -144,8 +140,7 @@ class ShipmentForm
                                                             ->send();
                                                     }
                                                 }
-                                            })
-                                            ->helperText('Select batch with available stock'),
+                                            }),
 
                                         TextInput::make('qty_shipped')
                                             ->label('Quantity to Ship')
@@ -153,8 +148,7 @@ class ShipmentForm
                                             ->integer()
                                             ->minValue(1)
                                             ->live(debounce: 500)
-                                            ->placeholder('e.g., 50')
-                                            ->helperText('Quantity to ship (cartons)'),
+                                            ->placeholder('e.g., 50'),
                                         Textarea::make('notes')
                                             ->label('Item Notes')
                                             ->rows(2)
@@ -213,14 +207,8 @@ class ShipmentForm
 
                             ])
                             ->addActionLabel('Add Batch to Ship')
-                            ->reorderableWithButtons()
+                            ->reorderable(false)
                             ->collapsible()
-                            ->itemLabel(
-                                fn(array $state): ?string =>
-                                isset($state['production_batch_item_id']) && isset($state['qty_shipped'])
-                                    ? "Batch: {$state['qty_shipped']} cartons"
-                                    : 'New Item'
-                            )
                             ->minItems(1)
                             ->rules([
                                 function () {

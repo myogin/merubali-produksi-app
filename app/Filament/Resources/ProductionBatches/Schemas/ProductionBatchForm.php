@@ -35,14 +35,12 @@ class ProductionBatchForm
                                 TextInput::make('po_number')
                                     ->label('PO Number')
                                     ->maxLength(100)
-                                    ->placeholder('e.g., PO-2025-001')
-                                    ->helperText('Purchase order number (optional)'),
+                                    ->placeholder('e.g., PO-2025-001'),
 
                                 DatePicker::make('production_date')
                                     ->label('Production Date')
                                     ->required()
-                                    ->default(now())
-                                    ->helperText('Date of production'),
+                                    ->default(now()),
                             ]),
 
                         Textarea::make('notes')
@@ -58,20 +56,40 @@ class ProductionBatchForm
                     ->columnSpanFull()
                     ->description('List of products to produce in this batch')
                     ->schema([
-                        Repeater::make('productionBatchItems')
-                            ->label('Production Items')
+                        // Column headers
+                        Grid::make(4)
+                            ->schema([
+                                \Filament\Forms\Components\Placeholder::make('batch_code_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('product_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('quantity_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('notes_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+                            ])
+                            ->columnSpanFull(),
+
+                        Repeater::make('')
+                            ->label('')
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
                                         TextInput::make('batch_code')
-                                            ->label('Batch Code (MFD)')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->unique('production_batch_items', 'batch_code', ignoreRecord: true)
-                                            ->placeholder('e.g., MFD-2025-001')
-                                            ->helperText('Unique batch/MFD code'),
+                                            ->placeholder('e.g., MFD-2025-001'),
 
                                         Select::make('product_id')
-                                            ->label('Product')
+                                            ->hiddenLabel()
                                             ->options(
                                                 Product::all()->mapWithKeys(function ($product) {
                                                     return [$product->id => "{$product->product_code} - {$product->name}"];
@@ -83,19 +101,16 @@ class ProductionBatchForm
                                             ->afterStateUpdated(function ($set, $get, $state) {
                                                 // Clear qty when product changes to trigger BOM recalculation
                                                 $set('qty_produced', null);
-                                            })
-                                            ->helperText('Select the product to produce'),
+                                            }),
 
                                         TextInput::make('qty_produced')
-                                            ->label('Quantity to Produce')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->integer()
                                             ->minValue(1)
-
                                             ->maxLength(20)
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 100')
-                                            ->helperText('Number of cartons to produce')
                                             ->afterStateUpdated(function ($set, $get, $state) {
                                                 // Show notification about individual item requirements
                                                 // Note: Final validation will be done cumulatively across all items
@@ -174,21 +189,15 @@ class ProductionBatchForm
                                             ]),
 
                                         Textarea::make('notes')
-                                            ->label('Item Notes')
+                                            ->hiddenLabel()
                                             ->rows(2)
                                             ->maxLength(500)
                                             ->placeholder('Notes specific to this production item')
                                     ])
                             ])
                             ->addActionLabel('Add Production Item')
-                            ->reorderableWithButtons()
+                            ->reorderable(false)
                             ->collapsible()
-                            ->itemLabel(
-                                fn(array $state): ?string =>
-                                isset($state['batch_code']) && isset($state['qty_produced'])
-                                    ? "Batch: {$state['batch_code']} - {$state['qty_produced']} cartons"
-                                    : 'New Production Item'
-                            )
                             ->minItems(1)
                             ->rules([
                                 function () {
