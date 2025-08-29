@@ -21,6 +21,8 @@ class PackagingItemResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
+    protected static ?string $navigationLabel = 'Packaging Stocks';
+
     protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|UnitEnum|null $navigationGroup = 'Master Data';
