@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\StockMovements\Pages;
 
 use App\Filament\Resources\StockMovements\StockMovementResource;
-use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListStockMovements extends ListRecords
@@ -13,7 +12,7 @@ class ListStockMovements extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            // Create action removed - stock movements are auto-generated only
         ];
     }
 }
