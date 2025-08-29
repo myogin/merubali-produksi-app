@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Shipments\Schemas;
 
 use App\Models\ProductionBatchItem;
+use App\Models\Destination;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -47,11 +48,12 @@ class ShipmentForm
 
                         Grid::make(2)
                             ->schema([
-                                TextInput::make('destination')
+                                Select::make('destination_id')
                                     ->label('Destination')
                                     ->required()
-                                    ->maxLength(255)
-                                    ->placeholder('e.g., Jakarta, Indonesia'),
+                                    ->options(Destination::active()->pluck('name', 'id'))
+                                    ->searchable()
+                                    ->placeholder('Select a destination'),
 
                                 TextInput::make('delivery_note_number')
                                     ->label('Delivery Note Number')

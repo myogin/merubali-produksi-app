@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Destination;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -23,6 +24,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ProductSeeder::class);
         $this->call(PackagingItemSeeder::class);
         $this->call(BomSeeder::class);
+        $this->call(Destination::class);
 
         // User::factory(10)->create();
     }

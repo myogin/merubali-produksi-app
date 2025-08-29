@@ -100,6 +100,20 @@ class RolePermissionSeeder extends Seeder
             'replicate_bom',
             'reorder_bom',
 
+            // Destination permissions (Master Data)
+            'view_any_destination',
+            'view_destination',
+            'create_destination',
+            'update_destination',
+            'delete_destination',
+            'delete_any_destination',
+            'force_delete_destination',
+            'force_delete_any_destination',
+            'restore_destination',
+            'restore_any_destination',
+            'replicate_destination',
+            'reorder_destination',
+
             // Production Batch permissions (Transactions)
             'view_any_production::batch',
             'view_production::batch',
@@ -228,6 +242,19 @@ class RolePermissionSeeder extends Seeder
             'restore_any_bom',
             'replicate_bom',
             'reorder_bom',
+
+            'view_any_destination',
+            'view_destination',
+            'create_destination',
+            'update_destination',
+            'delete_destination',
+            'delete_any_destination',
+            'force_delete_destination',
+            'force_delete_any_destination',
+            'restore_destination',
+            'restore_any_destination',
+            'replicate_destination',
+            'reorder_destination',
 
             // Transaction permissions
             'view_any_production::batch',

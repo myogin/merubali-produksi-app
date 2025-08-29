@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Shipment extends Model
 {
@@ -13,6 +14,7 @@ class Shipment extends Model
     protected $fillable = [
         'shipment_number',
         'shipment_date',
+        'destination_id',
         'destination',
         'delivery_note_number',
         'notes',
@@ -21,6 +23,14 @@ class Shipment extends Model
     protected $casts = [
         'shipment_date' => 'date',
     ];
+
+    /**
+     * Get the destination for this shipment.
+     */
+    public function destination(): BelongsTo
+    {
+        return $this->belongsTo(Destination::class);
+    }
 
     /**
      * Get the shipment items for the shipment.
