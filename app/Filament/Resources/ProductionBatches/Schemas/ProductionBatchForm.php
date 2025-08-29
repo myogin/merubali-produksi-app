@@ -77,8 +77,9 @@ class ProductionBatchForm
                             ])
                             ->columnSpanFull(),
 
-                        Repeater::make('')
+                        Repeater::make('productionBatchItems')
                             ->label('')
+                            ->relationship('productionBatchItems')
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
@@ -197,7 +198,7 @@ class ProductionBatchForm
                             ])
                             ->addActionLabel('Add Production Item')
                             ->reorderable(false)
-                            ->collapsible()
+                            // ->collapsible()
                             ->minItems(1)
                             ->rules([
                                 function () {

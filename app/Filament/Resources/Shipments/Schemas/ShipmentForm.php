@@ -74,14 +74,32 @@ class ShipmentForm
                     ->columnSpanFull()
                     ->description('Select production batches and quantities to ship')
                     ->schema([
+                        // Column headers
+                        Grid::make(4)
+                            ->schema([
+                                \Filament\Forms\Components\Placeholder::make('production_batch_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('quantity_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('notes_header')
+                                    ->content('')
+                                    ->columnSpan(2)
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+                            ])
+                            ->columnSpanFull(),
+
                         Repeater::make('shipmentItems')
-                            ->label('Items to Ship')
+                            ->label('')
                             ->relationship()
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
                                         Select::make('production_batch_item_id')
-                                            ->label('Production Batch')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->options(function () {
                                                 // Cache the query to avoid repeated database calls
@@ -145,14 +163,14 @@ class ShipmentForm
                                             }),
 
                                         TextInput::make('qty_shipped')
-                                            ->label('Quantity to Ship')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->integer()
                                             ->minValue(1)
                                             ->live(debounce: 500)
                                             ->placeholder('e.g., 50'),
                                         Textarea::make('notes')
-                                            ->label('Item Notes')
+                                            ->hiddenLabel()
                                             ->rows(2)
                                             ->maxLength(500)
                                             ->columnSpan(2)
@@ -210,7 +228,7 @@ class ShipmentForm
                             ])
                             ->addActionLabel('Add Batch to Ship')
                             ->reorderable(false)
-                            ->collapsible()
+                            // ->collapsible()
                             ->minItems(1)
                             ->rules([
                                 function () {

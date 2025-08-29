@@ -19,25 +19,25 @@ class CreateProductionBatch extends CreateRecord
         Log::info("=== PRODUCTION BATCH CREATION STARTED ===");
         Log::info("Received data: " . json_encode($data, JSON_PRETTY_PRINT));
 
+        // Extract production batch items from data before validation
+        $productionBatchItems = $data['productionBatchItems'] ?? [];
+
         // Validate stock availability for all production batch items
         $this->validateStockAvailability($data);
 
-        // Create the production batch record (header)
-        $productionBatchData = [
-            'production_date' => $data['production_date'],
-            'po_number' => $data['po_number'] ?? null,
-            'notes' => $data['notes'] ?? null,
-        ];
+        // Remove productionBatchItems from data to avoid mass assignment issues
+        unset($data['productionBatchItems']);
 
-        Log::info("Creating production batch with data: " . json_encode($productionBatchData, JSON_PRETTY_PRINT));
-        $record = static::getModel()::create($productionBatchData);
+        // Create the production batch record (header)
+        Log::info("Creating production batch with data: " . json_encode($data, JSON_PRETTY_PRINT));
+        $record = static::getModel()::create($data);
         Log::info("Created production batch ID: {$record->id}");
 
         // Create production batch items and generate stock movements
-        if (isset($data['productionBatchItems'])) {
-            Log::info("Found " . count($data['productionBatchItems']) . " production batch items to process");
+        if (!empty($productionBatchItems)) {
+            Log::info("Found " . count($productionBatchItems) . " production batch items to process");
 
-            foreach ($data['productionBatchItems'] as $index => $itemData) {
+            foreach ($productionBatchItems as $index => $itemData) {
                 Log::info("Processing item {$index}: " . json_encode($itemData, JSON_PRETTY_PRINT));
 
                 $productionBatchItem = $record->productionBatchItems()->create([

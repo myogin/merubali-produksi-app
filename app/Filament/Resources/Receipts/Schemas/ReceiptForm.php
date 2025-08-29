@@ -64,14 +64,35 @@ class ReceiptForm
                     ->columnSpanFull()
                     ->description('List of packaging items received')
                     ->schema([
+                        // Column headers
+                        Grid::make(4)
+                            ->schema([
+                                \Filament\Forms\Components\Placeholder::make('packaging_item_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('quantity_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('unit_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('notes_header')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+                            ])
+                            ->columnSpanFull(),
+
                         Repeater::make('receiptItems')
-                            ->label('Items')
+                            ->label('')
                             ->relationship()
                             ->schema([
                                 Grid::make(4)
                                     ->schema([
                                         Select::make('packaging_item_id')
-                                            ->label('Packaging Item')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->relationship('packagingItem', 'name')
                                             ->searchable()
@@ -79,20 +100,20 @@ class ReceiptForm
                                             ->getOptionLabelFromRecordUsing(fn(PackagingItem $record): string => "{$record->packaging_code} - {$record->name}"),
 
                                         TextInput::make('qty_received')
-                                            ->label('Quantity Received')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->integer()
                                             ->minValue(1)
                                             ->placeholder('e.g., 1000'),
 
                                         TextInput::make('uom')
-                                            ->label('Unit')
+                                            ->hiddenLabel()
                                             ->required()
                                             ->default('pcs')
                                             ->placeholder('pcs'),
 
                                         Textarea::make('notes')
-                                            ->label('Item Notes')
+                                            ->hiddenLabel()
                                             ->rows(2)
                                             ->maxLength(500)
                                             ->placeholder('Notes specific to this item'),
@@ -100,7 +121,7 @@ class ReceiptForm
                             ])
                             ->addActionLabel('Add Item')
                             ->reorderable(false)
-                            ->collapsible()
+                            // ->collapsible()
                             ->minItems(1),
                     ])
                     ->columns(1),
