@@ -198,11 +198,11 @@ class ShipmentForm
 
                                         $html = '<div class="space-y-2">';
                                         $html .= '<div class="grid grid-cols-2 gap-4 text-sm">';
-                                        $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
+                                        // $html .= '<div><strong>Product:</strong> ' . e($batchItem->product->name) . '</div>';
                                         $html .= '<div><strong>Production Date:</strong> ' . e($batchItem->productionBatch->production_date->format('Y-m-d')) . '</div>';
                                         $html .= '<div><strong>Total Produced:</strong> ' . number_format($batchItem->qty_produced) . ' cartons</div>';
                                         $html .= '<div><strong>Already Shipped:</strong> ' . number_format($totalShipped) . ' cartons</div>';
-                                        $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
+                                        // $html .= '<div><strong>Available Stock:</strong> ' . number_format($remainingStock) . ' cartons</div>';
                                         $html .= '</div>';
 
                                         if ($qtyToShip) {
