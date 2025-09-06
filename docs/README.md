@@ -35,6 +35,7 @@ This Laravel application replaces the previous Google Sheets + Apps Script syste
 
 ### 🔧 Development
 
+-   [Working with Cline](development/working-with-cline.md) - How to use documentation with AI assistant
 -   [Local Setup](development/setup.md) - Development environment setup
 -   [Coding Standards](development/coding-standards.md) - Code style guidelines
 -   [Testing](development/testing.md) - Testing procedures
