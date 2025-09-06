@@ -28,7 +28,6 @@ class ProductionBatchForm
         return $schema
             ->components([
                 Section::make('Production Information')
-                    ->description('Basic information about the production batch')
                     ->schema([
                         Grid::make(2)
                             ->schema([
@@ -51,32 +50,10 @@ class ProductionBatchForm
                     ])
                     ->columns(1),
 
-                Section::make('Production Items')
+                Section::make('')
                     ->columns(1)
                     ->columnSpanFull()
-                    ->description('List of products to produce in this batch')
                     ->schema([
-                        // Column headers
-                        Grid::make(4)
-                            ->schema([
-                                \Filament\Forms\Components\Placeholder::make('batch_code_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('product_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('quantity_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('notes_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-                            ])
-                            ->columnSpanFull(),
-
                         Repeater::make('productionBatchItems')
                             ->label('')
                             ->relationship('productionBatchItems')

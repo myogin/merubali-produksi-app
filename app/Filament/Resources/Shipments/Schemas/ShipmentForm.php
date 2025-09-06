@@ -29,7 +29,6 @@ class ShipmentForm
         return $schema
             ->components([
                 Section::make('Shipment Information')
-                    ->description('Basic information about the shipment')
                     ->schema([
                         Grid::make(2)
                             ->schema([
@@ -69,29 +68,10 @@ class ShipmentForm
                     ])
                     ->columns(1),
 
-                Section::make('Shipment Items')
+                Section::make('')
                     ->columns(1)
                     ->columnSpanFull()
-                    ->description('Select production batches and quantities to ship')
                     ->schema([
-                        // Column headers
-                        Grid::make(4)
-                            ->schema([
-                                \Filament\Forms\Components\Placeholder::make('production_batch_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('quantity_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('notes_header')
-                                    ->content('')
-                                    ->columnSpan(2)
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-                            ])
-                            ->columnSpanFull(),
-
                         Repeater::make('shipmentItems')
                             ->label('')
                             ->relationship()

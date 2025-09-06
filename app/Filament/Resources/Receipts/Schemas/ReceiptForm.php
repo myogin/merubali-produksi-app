@@ -19,7 +19,6 @@ class ReceiptForm
         return $schema
             ->components([
                 Section::make('Receipt Information')
-                    ->description('Basic information about the packaging receipt')
                     ->schema([
                         Grid::make(2)
                             ->schema([
@@ -59,32 +58,11 @@ class ReceiptForm
                     ])
                     ->columns(1),
 
-                Section::make('Receipt Items')
+                Section::make('')
                     ->columns(1)
                     ->columnSpanFull()
-                    ->description('List of packaging items received')
+                    // ->description('List of packaging items received')
                     ->schema([
-                        // Column headers
-                        Grid::make(4)
-                            ->schema([
-                                \Filament\Forms\Components\Placeholder::make('packaging_item_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('quantity_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('unit_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-
-                                \Filament\Forms\Components\Placeholder::make('notes_header')
-                                    ->content('')
-                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
-                            ])
-                            ->columnSpanFull(),
-
                         Repeater::make('receiptItems')
                             ->label('')
                             ->relationship()
