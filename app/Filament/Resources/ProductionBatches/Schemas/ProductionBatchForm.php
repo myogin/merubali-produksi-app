@@ -54,8 +54,28 @@ class ProductionBatchForm
                     ->columns(1)
                     ->columnSpanFull()
                     ->schema([
+                        // Column headers
+                        Grid::make(4)
+                            ->schema([
+                                \Filament\Forms\Components\Placeholder::make('batch_code')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('product')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('quantity')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('notes')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+                            ])
+                            ->columnSpanFull(),
                         Repeater::make('productionBatchItems')
-                            ->label('')
+                            ->hiddenLabel()
                             ->relationship('productionBatchItems')
                             ->schema([
                                 Grid::make(4)

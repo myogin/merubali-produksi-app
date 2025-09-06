@@ -72,8 +72,25 @@ class ShipmentForm
                     ->columns(1)
                     ->columnSpanFull()
                     ->schema([
+                        // Column headers
+                        Grid::make(4)
+                            ->schema([
+                                \Filament\Forms\Components\Placeholder::make('production_batch')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('quantity')
+                                    ->content('')
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+
+                                \Filament\Forms\Components\Placeholder::make('notes')
+                                    ->content('')
+                                    ->columnSpan(2)
+                                    ->extraAttributes(['class' => 'font-semibold text-gray-700 text-sm']),
+                            ])
+                            ->columnSpanFull(),
                         Repeater::make('shipmentItems')
-                            ->label('')
+                            ->hiddenLabel()
                             ->relationship()
                             ->schema([
                                 Grid::make(4)
