@@ -31,7 +31,7 @@ class ProductionBatchResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
-    protected static ?string $recordTitleAttribute = 'batch_code';
+    protected static ?string $recordTitleAttribute = 'po_number';
 
     public static function form(Schema $schema): Schema
     {

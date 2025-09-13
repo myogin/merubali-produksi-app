@@ -58,10 +58,13 @@ class StockMovementsTable
                     })
                     ->searchable(['packaging_items.packaging_code', 'products.product_code']),
 
-                TextColumn::make('productionBatch.batch_code')
+                TextColumn::make('batch_code')
                     ->label('Batch Code')
+                    ->getStateUsing(function ($record) {
+                        return $record->productionBatchItem?->batch_code ?? 'N/A';
+                    })
                     ->placeholder('N/A')
-                    ->searchable(),
+                    ->searchable(['production_batch_items.batch_code']),
 
                 TextColumn::make('movement_type')
                     ->label('Movement')
@@ -113,14 +116,14 @@ class StockMovementsTable
                             case 'receipt':
                                 return $record->receipt?->receipt_number ?? 'N/A';
                             case 'production':
-                                return $record->productionBatchReference?->batch_code ?? 'N/A';
+                                return $record->productionBatchReference?->po_number ?? 'Production Batch #' . $record->reference_id;
                             case 'shipment':
                                 return $record->shipment?->shipment_number ?? 'N/A';
                             default:
                                 return 'N/A';
                         }
                     })
-                    ->searchable(['receipts.receipt_number', 'production_batches.batch_code', 'shipments.shipment_number']),
+                    ->searchable(['receipts.receipt_number', 'production_batches.po_number', 'shipments.shipment_number']),
 
                 TextColumn::make('notes')
                     ->label('Notes')
